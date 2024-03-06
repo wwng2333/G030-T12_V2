@@ -50,6 +50,7 @@
 
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
+uint16_t t12_adc;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -57,6 +58,7 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void beep();
 void MainScreen(u8g2_t *u8g2);
+void T12_ADC_Read(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -107,9 +109,11 @@ int main(void)
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
 	
-	LL_TIM_EnableAllOutputs(TIM3);
-	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
-	LL_TIM_EnableCounter(TIM3);
+//	LL_TIM_EnableAllOutputs(TIM3);
+//	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+//	LL_TIM_EnableCounter(TIM3);
+
+	LL_ADC_EnableIT_EOC(ADC1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -118,6 +122,7 @@ int main(void)
   {
 		MainScreen(&u8g2);
 		//beep();
+		T12_ADC_Read();
 		LL_mDelay(10);
     /* USER CODE END WHILE */
 
@@ -210,6 +215,16 @@ void MainScreen(u8g2_t *u8g2)
     //sprintf(sprintf_tmp, "%d", encoder_value);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
+}
+
+void T12_ADC_Read(void)
+{
+	LL_ADC_REG_StartConversion(ADC1);
+	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+	{
+		;
+	}
+	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(3300, LL_ADC_REG_ReadConversionData12(ADC1), LL_ADC_RESOLUTION_12B);
 }
 /* USER CODE END 4 */
 
