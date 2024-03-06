@@ -73,10 +73,10 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define SDA_Pin LL_GPIO_PIN_3
-#define SDA_GPIO_Port GPIOB
-#define SCL_Pin LL_GPIO_PIN_4
+#define SCL_Pin LL_GPIO_PIN_3
 #define SCL_GPIO_Port GPIOB
+#define SDA_Pin LL_GPIO_PIN_4
+#define SDA_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

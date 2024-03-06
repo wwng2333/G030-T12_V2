@@ -28,6 +28,7 @@
 #include "EventRecorder.h"
 #include "oled_driver.h"
 #include "stdio.h"
+#include "i2c.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,7 +55,7 @@ static u8g2_t u8g2;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void beep();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -98,21 +99,25 @@ int main(void)
   MX_ADC1_Init();
   MX_SPI1_Init();
   MX_TIM3_Init();
+  MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
 	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_4wire_hw_spi, u8x8_stm32_gpio_and_delay);
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
+	u8g2_FirstPage(&u8g2);
+	do
+	{
+		draw(&u8g2);
+	} while (u8g2_NextPage(&u8g2));
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		u8g2_FirstPage(&u8g2);
-		do
-		{
-			draw(&u8g2);
-		} while (u8g2_NextPage(&u8g2));
+		//beep();
+		TMP75_ReadTemp();
+		LL_mDelay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -164,7 +169,25 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void TIM17_Delay_100us(void)
+{
+	LL_TIM_EnableCounter(TIM17);
+	while(LL_TIM_IsActiveFlag_UPDATE(TIM17) == RESET)
+		;
+	LL_TIM_DisableCounter(TIM17);
+	LL_TIM_ClearFlag_UPDATE(TIM17);
+}
 
+void beep()
+{
+	for(uint8_t i=0; i<255; i++)
+	{
+		LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_1);
+		TIM17_Delay_100us();
+		LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_1);
+		TIM17_Delay_100us();
+	}
+}
 /* USER CODE END 4 */
 
 /**
