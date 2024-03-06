@@ -106,6 +106,10 @@ int main(void)
 	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_4wire_hw_spi, u8x8_stm32_gpio_and_delay);
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
+	
+	LL_TIM_EnableAllOutputs(TIM3);
+	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+	LL_TIM_EnableCounter(TIM3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
