@@ -56,6 +56,7 @@ static u8g2_t u8g2;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void beep();
+void MainScreen(u8g2_t *u8g2);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -101,23 +102,19 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM17_Init();
   /* USER CODE BEGIN 2 */
+	Activate_ADC();
 	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_4wire_hw_spi, u8x8_stm32_gpio_and_delay);
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
-	u8g2_FirstPage(&u8g2);
-	do
-	{
-		draw(&u8g2);
-	} while (u8g2_NextPage(&u8g2));
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		MainScreen(&u8g2);
 		//beep();
-		TMP75_ReadTemp();
-		LL_mDelay(100);
+		LL_mDelay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -187,6 +184,28 @@ void beep()
 		LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_1);
 		TIM17_Delay_100us();
 	}
+}
+
+void MainScreen(u8g2_t *u8g2)
+{
+  char sprintf_tmp[8] = {0};
+  u8g2_FirstPage(u8g2);
+  u8g2_SetFontMode(u8g2, 1);
+  u8g2_SetFontDirection(u8g2, 0);
+  do
+  {
+    u8g2_SetFont(u8g2, u8g2_font_9x15_te);
+    u8g2_DrawStr(u8g2, 0, 10, "SET:");
+    u8g2_DrawStr(u8g2, 40, 10, "200");
+    u8g2_DrawStr(u8g2, 83, 10, "  OFF");
+    u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
+    sprintf(sprintf_tmp, "%.1fC", TMP75_ReadTemp());
+    u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
+
+    u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
+    //sprintf(sprintf_tmp, "%d", encoder_value);
+    u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
+  } while (u8g2_NextPage(u8g2));
 }
 /* USER CODE END 4 */
 
