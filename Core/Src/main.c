@@ -50,15 +50,15 @@
 
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
-uint16_t t12_adc;
+uint16_t t12_adc, vin_adc;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void beep();
 void MainScreen(u8g2_t *u8g2);
 void T12_ADC_Read(void);
+void Vin_ADC_Read(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -103,27 +103,32 @@ int main(void)
   MX_SPI1_Init();
   MX_TIM3_Init();
   MX_TIM17_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
 	Activate_ADC();
 	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_4wire_hw_spi, u8x8_stm32_gpio_and_delay);
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
 	
-//	LL_TIM_EnableAllOutputs(TIM3);
-//	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
-//	LL_TIM_EnableCounter(TIM3);
+	LL_TIM_EnableAllOutputs(TIM3);
+	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+	//LL_TIM_EnableCounter(TIM3);
+	LL_TIM_OC_SetCompareCH1(TIM3, 1999);
 
-	LL_ADC_EnableIT_EOC(ADC1);
+	LL_TIM_EnableAllOutputs(TIM14);
+	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
+	//LL_TIM_EnableCounter(TIM14);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		//Vin_ADC_Read();
 		MainScreen(&u8g2);
 		//beep();
 		T12_ADC_Read();
-		LL_mDelay(10);
+		LL_mDelay(50);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -175,26 +180,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void TIM17_Delay_100us(void)
-{
-	LL_TIM_EnableCounter(TIM17);
-	while(LL_TIM_IsActiveFlag_UPDATE(TIM17) == RESET)
-		;
-	LL_TIM_DisableCounter(TIM17);
-	LL_TIM_ClearFlag_UPDATE(TIM17);
-}
-
-void beep()
-{
-	for(uint8_t i=0; i<255; i++)
-	{
-		LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_1);
-		TIM17_Delay_100us();
-		LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_1);
-		TIM17_Delay_100us();
-	}
-}
-
 void MainScreen(u8g2_t *u8g2)
 {
   char sprintf_tmp[8] = {0};
@@ -208,7 +193,7 @@ void MainScreen(u8g2_t *u8g2)
     u8g2_DrawStr(u8g2, 40, 10, "200");
     u8g2_DrawStr(u8g2, 83, 10, "  OFF");
     u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
-    sprintf(sprintf_tmp, "%.1fC", TMP75_ReadTemp());
+		sprintf(sprintf_tmp, "%.1fV", (vin_adc*0.001*((47 + 4.7) / 4.7)));
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
     u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
@@ -217,14 +202,57 @@ void MainScreen(u8g2_t *u8g2)
   } while (u8g2_NextPage(u8g2));
 }
 
-void T12_ADC_Read(void)
+void Vin_ADC_Read(void)
 {
+	uint16_t temp;
+	LL_ADC_Disable(ADC1);
+	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_11);
+	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_11, LL_ADC_SAMPLINGTIME_160CYCLES_5);
+	LL_ADC_Enable(ADC1);
 	LL_ADC_REG_StartConversion(ADC1);
 	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
 	{
 		;
 	}
-	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(3300, LL_ADC_REG_ReadConversionData12(ADC1), LL_ADC_RESOLUTION_12B);
+	temp = LL_ADC_REG_ReadConversionData12(ADC1);
+	LL_ADC_ClearFlag_EOC(ADC1);
+	printf("vin read %d, ", temp);
+	vin_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(3300, temp, LL_ADC_RESOLUTION_12B);
+	printf("%hu mV\n", vin_adc);
+}
+
+void T12_ADC_Read(void)
+{
+	uint8_t count, real = 0;
+	uint16_t add = 0, temp = 0;
+	LL_ADC_Disable(ADC1);
+	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_10);
+	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_10, LL_ADC_SAMPLINGTIME_160CYCLES_5);
+	LL_ADC_Enable(ADC1);
+	LL_ADC_REG_StartConversion(ADC1);
+	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+	{
+		;
+	}
+	for(count = 0; count < 32; count++)
+	{
+		LL_ADC_REG_StartConversion(ADC1);
+		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+		{
+			;
+		}
+	temp = LL_ADC_REG_ReadConversionData12(ADC1);
+	LL_ADC_ClearFlag_EOC(ADC1);
+	//printf("adc read %d, ", temp);
+		if(temp < 1000) 
+		{
+			add += temp;
+			real++;
+		}
+	}
+	add /= real;
+	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(3300, add, LL_ADC_RESOLUTION_12B);
+	printf("t12:%hu mV\n", add);
 }
 /* USER CODE END 4 */
 
