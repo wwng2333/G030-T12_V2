@@ -112,7 +112,7 @@ int main(void)
 	
 	LL_TIM_EnableAllOutputs(TIM3);
 	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
-	//LL_TIM_EnableCounter(TIM3);
+	LL_TIM_EnableCounter(TIM3);
 	LL_TIM_OC_SetCompareCH1(TIM3, 1999);
 
 	LL_TIM_EnableAllOutputs(TIM14);

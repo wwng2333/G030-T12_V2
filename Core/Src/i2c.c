@@ -19,14 +19,14 @@ void I2C_Delay(void)
 	//LL_mDelay(1);
 }
 
-#define Pin_SCL_L LL_GPIO_ResetOutputPin(SCL_GPIO_Port, SCL_Pin)
-#define Pin_SCL_H LL_GPIO_SetOutputPin(SCL_GPIO_Port, SCL_Pin)
+#define Pin_SCL_L LL_GPIO_ResetOutputPin(PB8_SCL_GPIO_Port, PB8_SCL_Pin)
+#define Pin_SCL_H LL_GPIO_SetOutputPin(PB8_SCL_GPIO_Port, PB8_SCL_Pin)
 
-#define Pin_SDA_L LL_GPIO_ResetOutputPin(SDA_GPIO_Port, SDA_Pin)
-#define Pin_SDA_H LL_GPIO_SetOutputPin(SDA_GPIO_Port, SDA_Pin)
+#define Pin_SDA_L LL_GPIO_ResetOutputPin(PB9_SDA_GPIO_Port, PB9_SDA_Pin)
+#define Pin_SDA_H LL_GPIO_SetOutputPin(PB9_SDA_GPIO_Port, PB9_SDA_Pin)
 
-#define Read_SDA_Pin LL_GPIO_IsInputPinSet(SDA_GPIO_Port, SDA_Pin)
-#define Read_SCL_Pin LL_GPIO_IsInputPinSet(SCL_GPIO_Port, SCL_Pin)
+#define Read_SDA_Pin LL_GPIO_IsInputPinSet(PB9_SDA_GPIO_Port, PB9_SDA_Pin)
+#define Read_SCL_Pin LL_GPIO_IsInputPinSet(PB8_SCL_GPIO_Port, PB8_SCL_Pin)
 
 float TMP75_ReadTemp(void)
 {
