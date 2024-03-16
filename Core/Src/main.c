@@ -124,6 +124,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		TMP75_ReadTemp();
 		//Vin_ADC_Read();
 		MainScreen(&u8g2);
 		//beep();

@@ -75,10 +75,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define PB9_SDA_Pin LL_GPIO_PIN_9
 #define PB9_SDA_GPIO_Port GPIOB
-#define SCL_Pin LL_GPIO_PIN_3
-#define SCL_GPIO_Port GPIOB
-#define SDA_Pin LL_GPIO_PIN_4
-#define SDA_GPIO_Port GPIOB
 #define PB8_SCL_Pin LL_GPIO_PIN_8
 #define PB8_SCL_GPIO_Port GPIOB
 
