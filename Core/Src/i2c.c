@@ -39,7 +39,7 @@ float TMP75_ReadTemp(void)
 	}
 	temp = (float)dat / 256;
 	printf("TMP75 0x00=%.2f\r\n", temp);
-	printf("TMP75 0x00=%d\n", dat);
+	//printf("TMP75 0x00=%d\n", dat);
 	return temp;
 }
 

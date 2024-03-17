@@ -22,6 +22,7 @@
 #include "stm32g0xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,7 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+extern uint16_t EC11_val;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -139,6 +140,57 @@ void PendSV_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32g0xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles EXTI line 4 to 15 interrupts.
+  */
+void EXTI4_15_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI4_15_IRQn 0 */
+	static uint8_t count = 0;
+	static uint8_t b_flag;
+	uint8_t a_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_14);
+	uint8_t b_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_15);
+	LL_EXTI_DisableIT_0_31(LL_EXTI_LINE_14);
+	if(a_value == RESET && count == 0)
+	{
+		b_flag = 0;
+		if(b_value)
+			b_flag = 1;
+		count = 1;
+	}
+	
+	if(a_value == SET && count == 1)
+	{
+		if(b_value == RESET && b_flag == 1)
+		{
+			EC11_val++;
+		}
+		if(b_value == SET && b_flag == 0)
+		{
+			EC11_val--;
+		}
+		count = 0;
+	}
+	LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_14);
+  /* USER CODE END EXTI4_15_IRQn 0 */
+  if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_14) != RESET)
+  {
+    LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_14);
+    /* USER CODE BEGIN LL_EXTI_LINE_14_FALLING */
+
+    /* USER CODE END LL_EXTI_LINE_14_FALLING */
+  }
+  if (LL_EXTI_IsActiveRisingFlag_0_31(LL_EXTI_LINE_14) != RESET)
+  {
+    LL_EXTI_ClearRisingFlag_0_31(LL_EXTI_LINE_14);
+    /* USER CODE BEGIN LL_EXTI_LINE_14_RISING */
+		
+    /* USER CODE END LL_EXTI_LINE_14_RISING */
+  }
+  /* USER CODE BEGIN EXTI4_15_IRQn 1 */
+  /* USER CODE END EXTI4_15_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 

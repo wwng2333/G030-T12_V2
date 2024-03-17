@@ -51,6 +51,7 @@
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
 uint16_t t12_adc, vin_adc;
+uint16_t EC11_val = 200;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -124,11 +125,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		TMP75_ReadTemp();
+		//TMP75_ReadTemp();
 		//Vin_ADC_Read();
 		MainScreen(&u8g2);
 		//beep();
-		T12_ADC_Read();
+		//T12_ADC_Read();
 		LL_mDelay(50);
     /* USER CODE END WHILE */
 
@@ -198,7 +199,7 @@ void MainScreen(u8g2_t *u8g2)
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
     u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
-    //sprintf(sprintf_tmp, "%d", encoder_value);
+    sprintf(sprintf_tmp, "%d", EC11_val);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
 }
