@@ -50,7 +50,7 @@
 
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
-uint16_t t12_adc, vin_adc;
+uint16_t t12_adc, vin_adc, vcc_adc, temp_adc;
 uint16_t EC11_val = 200;
 /* USER CODE END PV */
 
@@ -60,6 +60,8 @@ void SystemClock_Config(void);
 void MainScreen(u8g2_t *u8g2);
 void T12_ADC_Read(void);
 void Vin_ADC_Read(void);
+void Vref_ADC_Read(void);
+void Temp_ADC_Read(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -125,11 +127,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		//TMP75_ReadTemp();
-		//Vin_ADC_Read();
+		TMP75_ReadTemp();
+		Vref_ADC_Read();
+		Vin_ADC_Read();
+		T12_ADC_Read();
+		Temp_ADC_Read();
 		MainScreen(&u8g2);
 		//beep();
-		//T12_ADC_Read();
 		LL_mDelay(50);
     /* USER CODE END WHILE */
 
@@ -192,14 +196,15 @@ void MainScreen(u8g2_t *u8g2)
   {
     u8g2_SetFont(u8g2, u8g2_font_9x15_te);
     u8g2_DrawStr(u8g2, 0, 10, "SET:");
-    u8g2_DrawStr(u8g2, 40, 10, "200");
+    sprintf(sprintf_tmp, "%d", EC11_val);
+    u8g2_DrawStr(u8g2, 40, 10, sprintf_tmp);
     u8g2_DrawStr(u8g2, 83, 10, "  OFF");
     u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
 		sprintf(sprintf_tmp, "%.1fV", (vin_adc*0.001*((47 + 4.7) / 4.7)));
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
     u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
-    sprintf(sprintf_tmp, "%d", EC11_val);
+		sprintf(sprintf_tmp, "%d", t12_adc);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
 }
@@ -207,10 +212,10 @@ void MainScreen(u8g2_t *u8g2)
 void Vin_ADC_Read(void)
 {
 	uint16_t temp;
-	LL_ADC_Disable(ADC1);
+	//LL_ADC_Disable(ADC1);
 	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_11);
 	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_11, LL_ADC_SAMPLINGTIME_160CYCLES_5);
-	LL_ADC_Enable(ADC1);
+	//LL_ADC_Enable(ADC1);
 	LL_ADC_REG_StartConversion(ADC1);
 	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
 	{
@@ -219,7 +224,7 @@ void Vin_ADC_Read(void)
 	temp = LL_ADC_REG_ReadConversionData12(ADC1);
 	LL_ADC_ClearFlag_EOC(ADC1);
 	printf("vin read %d, ", temp);
-	vin_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(3300, temp, LL_ADC_RESOLUTION_12B);
+	vin_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, temp, LL_ADC_RESOLUTION_12B);
 	printf("%hu mV\n", vin_adc);
 }
 
@@ -227,35 +232,78 @@ void T12_ADC_Read(void)
 {
 	uint8_t count, real = 0;
 	uint16_t add = 0, temp = 0;
-	LL_ADC_Disable(ADC1);
+	//LL_ADC_Disable(ADC1);
 	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_10);
 	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_10, LL_ADC_SAMPLINGTIME_160CYCLES_5);
-	LL_ADC_Enable(ADC1);
+	//LL_ADC_Enable(ADC1);
 	LL_ADC_REG_StartConversion(ADC1);
 	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
 	{
 		;
 	}
-	for(count = 0; count < 32; count++)
+//	for(count = 0; count < 32; count++)
+//	{
+//		LL_ADC_REG_StartConversion(ADC1);
+//		while(LL_ADC_IsActiveFlag_EOS(ADC1) == RESET)
+//		{
+//			;
+//		}
+//	temp = LL_ADC_REG_ReadConversionData12(ADC1);
+//	LL_ADC_ClearFlag_EOS(ADC1);
+//	printf("adc read %d, ", temp);
+//		if(temp < 1000) 
+//		{
+//			add += temp;
+//			real++;
+//		}
+//	}
+//	add /= real;
+	add = LL_ADC_REG_ReadConversionData12(ADC1);
+	LL_ADC_ClearFlag_EOC(ADC1);
+	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, add, LL_ADC_RESOLUTION_12B);
+	printf("t12:%hu mV\n", t12_adc);
+}
+
+void Vref_ADC_Read(void)
+{
+	uint16_t temp;
+	//LL_ADC_Disable(ADC1);
+	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_VREFINT);
+	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_VREFINT, LL_ADC_SAMPLINGTIME_160CYCLES_5);
+	//LL_ADC_Enable(ADC1);
+	LL_ADC_REG_StartConversion(ADC1);
+	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
 	{
-		LL_ADC_REG_StartConversion(ADC1);
-		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-		{
-			;
-		}
+		;
+	}
 	temp = LL_ADC_REG_ReadConversionData12(ADC1);
 	LL_ADC_ClearFlag_EOC(ADC1);
-	//printf("adc read %d, ", temp);
-		if(temp < 1000) 
-		{
-			add += temp;
-			real++;
-		}
-	}
-	add /= real;
-	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(3300, add, LL_ADC_RESOLUTION_12B);
-	printf("t12:%hu mV\n", add);
+	printf("vref read %d, ", temp);
+	
+	vcc_adc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(temp, LL_ADC_RESOLUTION_12B);
+	printf("%hu mV\n", vcc_adc);
 }
+
+void Temp_ADC_Read(void)
+{
+	uint16_t temp;
+	//LL_ADC_Disable(ADC1);
+	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_TEMPSENSOR);
+	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_TEMPSENSOR, LL_ADC_SAMPLINGTIME_160CYCLES_5);
+	//LL_ADC_Enable(ADC1);
+	LL_ADC_REG_StartConversion(ADC1);
+	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+	{
+		;
+	}
+	temp = LL_ADC_REG_ReadConversionData12(ADC1);
+	LL_ADC_ClearFlag_EOC(ADC1);
+	printf("temp read %d, ", temp);
+	
+	temp_adc = __LL_ADC_CALC_TEMPERATURE(vcc_adc, temp, LL_ADC_RESOLUTION_12B);
+	printf("%hu C\n", temp_adc);
+}
+
 /* USER CODE END 4 */
 
 /**
