@@ -18,7 +18,7 @@
 
 #define FLASH_PAGE_SIZE 0x800
 
-#define SYSTEM_ARG_STORE_START_ADDR 0x8007F00
+#define SYSTEM_ARG_STORE_START_ADDR 0x0800F800
 
 static uint8_t ubFLASH_Unlock(void);
 static uint8_t ubFLASH_Lock(void);

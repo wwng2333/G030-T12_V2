@@ -58,7 +58,7 @@ uint8_t PWM_Output;
 
 PID_TypeDef TPID;
 
-SystemParamStore SystemParam = {.identifier = EEPROM_IDENT};
+SystemParamStore SystemParam = {0};
 
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
@@ -154,6 +154,7 @@ void SENSORCheck(void);
 void Thermostat(void);
 void beep(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
+void Read_System_Parmeter(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -220,14 +221,14 @@ int main(void)
 	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
 	
 	//Test flash
-	uint16_t len;
-	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
-	if(len > (FLASH_PAGE_SIZE >> 3))
-	{
-		printf("SystemParam size over flash page size...\n");
-	}
-	else
-	{
+//	uint16_t len;
+//	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
+//	if(len > (FLASH_PAGE_SIZE >> 3))
+//	{
+//		printf("SystemParam size over flash page size...\n");
+//	}
+//	else
+//	{
 //		if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len) != 0x00U)
 //		{
 //			printf("Save param failed!\n");
@@ -237,7 +238,13 @@ int main(void)
 //			
 //			printf("Save param OK!\n");
 //		}
-	}
+//	}
+	uint32_t test;
+	test = *((uint32_t *)SYSTEM_ARG_STORE_START_ADDR);
+	printf("test: %u, ", test);
+	memset(&SystemParam, 0, sizeof(SystemParam));
+	memcpy(&SystemParam, (const void*)SYSTEM_ARG_STORE_START_ADDR, sizeof(SystemParam));
+	//Read_System_Parmeter();
 	
 	// read supply voltages in mV
 	Vref_Read();
@@ -473,6 +480,25 @@ void beep(void)
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
 {
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void Read_System_Parmeter(void)
+{
+	uint32_t test;
+	test = *((uint32_t *)SYSTEM_ARG_STORE_START_ADDR);
+//	uint16_t len;
+//	//uint8_t crc;
+//	
+//	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
+//	printf("SystemParamStore size: %d %d\n", sizeof(SystemParamStore), len);
+//	
+//	if(len > (FLASH_PAGE_SIZE >> 3))
+//	{
+//		len = (FLASH_PAGE_SIZE >> 3);
+//		printf("SystemParam size over flash page size...\n");
+//	}
+//	
+//	vFlash_Read_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len);
 }
 
 /* USER CODE END 4 */

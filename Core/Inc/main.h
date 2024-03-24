@@ -125,15 +125,6 @@ typedef struct
 	uint16_t SleepTemp;
 	uint8_t BoostTemp;
 	uint8_t time2sleep;
-	uint8_t time2off;
-	uint8_t timeOfBoost;
-	uint8_t MainScrType;
-	uint8_t PIDenable;
-	uint8_t beepEnable;
-	uint8_t BodyFlip;
-	uint8_t ECReverse;
-	uint8_t CurrentTip;
-	uint8_t NumberOfTips;
 }SystemParamStore, SystemParamStore_t;
 
 /* USER CODE END EM */

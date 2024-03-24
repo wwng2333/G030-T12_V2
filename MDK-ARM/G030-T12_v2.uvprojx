@@ -278,7 +278,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x7f00</Size>
+                <Size>0xf800</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -315,7 +315,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>3</Optim>
+            <Optim>2</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -642,14 +642,14 @@
               <FilePath>..\Core\Src\u8g2\u8g2_d_setup.c</FilePath>
             </File>
             <File>
-              <FileName>u8g2_font.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\u8g2\u8g2_font.c</FilePath>
-            </File>
-            <File>
               <FileName>u8g2_fonts.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\u8g2\u8g2_fonts.c</FilePath>
+            </File>
+            <File>
+              <FileName>u8g2_font.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\u8g2\u8g2_font.c</FilePath>
             </File>
             <File>
               <FileName>u8g2_hvline.c</FileName>
