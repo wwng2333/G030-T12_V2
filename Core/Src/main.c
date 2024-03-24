@@ -340,7 +340,7 @@ void MainScreen(u8g2_t *u8g2)
 		sprintf(sprintf_tmp, "%.1fV", (Vin*0.001*((47 + 4.7) / 4.7)));
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
-    u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
+    u8g2_SetFont(u8g2, u8g2_font_freedoomr25_tn);
 		sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
