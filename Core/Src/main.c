@@ -29,6 +29,7 @@
 #include "oled_driver.h"
 #include "stdio.h"
 #include "i2c.h"
+#include "PID.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,7 +52,12 @@
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
 uint16_t t12_adc, vin_adc, vcc_adc, temp_adc;
-uint16_t EC11_val = 200;
+uint16_t EC11_val = 150;
+uint8_t PWM_Output;
+
+PID_TypeDef TPID;
+double PID_Temp, PID_Out, PID_Target;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,10 +119,15 @@ int main(void)
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
 	
+	PID(&TPID, &PID_Temp, &PID_Out, &PID_Target, 2, 0.5, 0.5, _PID_P_ON_E, _PID_CD_DIRECT);
+	PID_SetMode(&TPID, _PID_MODE_AUTOMATIC);
+	PID_SetSampleTime(&TPID, -1);
+	PID_SetOutputLimits(&TPID, 0, 199);
+	
 	LL_TIM_EnableAllOutputs(TIM3);
 	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+	LL_TIM_OC_SetCompareCH1(TIM3, 0);
 	LL_TIM_EnableCounter(TIM3);
-	LL_TIM_OC_SetCompareCH1(TIM3, 1999);
 
 	LL_TIM_EnableAllOutputs(TIM14);
 	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
@@ -128,13 +139,20 @@ int main(void)
   while (1)
   {
 		TMP75_ReadTemp();
+		Temp_ADC_Read();
 		Vref_ADC_Read();
 		Vin_ADC_Read();
+		LL_TIM_OC_SetCompareCH1(TIM3, 0); //Disable Output
+		LL_mDelay(10);
 		T12_ADC_Read();
-		Temp_ADC_Read();
+		PID_Temp = t12_adc;
+		PID_Target = EC11_val;
+		PID_Compute(&TPID);
+		LL_TIM_OC_SetCompareCH1(TIM3, PID_Out*10);
+		PWM_Output = PID_Out / 199 * 100;
 		MainScreen(&u8g2);
+		LL_mDelay(30);
 		//beep();
-		LL_mDelay(50);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -198,7 +216,8 @@ void MainScreen(u8g2_t *u8g2)
     u8g2_DrawStr(u8g2, 0, 10, "SET:");
     sprintf(sprintf_tmp, "%d", EC11_val);
     u8g2_DrawStr(u8g2, 40, 10, sprintf_tmp);
-    u8g2_DrawStr(u8g2, 83, 10, "  OFF");
+    sprintf(sprintf_tmp, " %d%%", PWM_Output);
+    u8g2_DrawStr(u8g2, 83, 10, sprintf_tmp);
     u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
 		sprintf(sprintf_tmp, "%.1fV", (vin_adc*0.001*((47 + 4.7) / 4.7)));
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
@@ -236,51 +255,56 @@ void T12_ADC_Read(void)
 	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_10);
 	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_10, LL_ADC_SAMPLINGTIME_160CYCLES_5);
 	//LL_ADC_Enable(ADC1);
-	LL_ADC_REG_StartConversion(ADC1);
-	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-	{
-		;
-	}
-//	for(count = 0; count < 32; count++)
+//	LL_ADC_REG_StartConversion(ADC1);
+//	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
 //	{
-//		LL_ADC_REG_StartConversion(ADC1);
-//		while(LL_ADC_IsActiveFlag_EOS(ADC1) == RESET)
-//		{
-//			;
-//		}
-//	temp = LL_ADC_REG_ReadConversionData12(ADC1);
-//	LL_ADC_ClearFlag_EOS(ADC1);
-//	printf("adc read %d, ", temp);
-//		if(temp < 1000) 
-//		{
-//			add += temp;
-//			real++;
-//		}
+//		;
 //	}
-//	add /= real;
-	add = LL_ADC_REG_ReadConversionData12(ADC1);
+	for(count = 0; count < 32; count++)
+	{
+		LL_ADC_REG_StartConversion(ADC1);
+		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+		{
+			;
+		}
+	temp = LL_ADC_REG_ReadConversionData12(ADC1);
 	LL_ADC_ClearFlag_EOC(ADC1);
+	//printf("adc read %d, ", temp);
+		if(temp < 1000) 
+		{
+			add += temp;
+			real++;
+		}
+	}
+	add /= real;
+	//add = LL_ADC_REG_ReadConversionData12(ADC1);
+	//LL_ADC_ClearFlag_EOC(ADC1);
 	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, add, LL_ADC_RESOLUTION_12B);
 	printf("t12:%hu mV\n", t12_adc);
 }
 
 void Vref_ADC_Read(void)
 {
-	uint16_t temp;
+	uint8_t count;
+	uint16_t temp, add = 0;
 	//LL_ADC_Disable(ADC1);
 	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_VREFINT);
 	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_VREFINT, LL_ADC_SAMPLINGTIME_160CYCLES_5);
 	//LL_ADC_Enable(ADC1);
-	LL_ADC_REG_StartConversion(ADC1);
-	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+	for(count = 0; count < 32; count++)
 	{
-		;
-	}
+		LL_ADC_REG_StartConversion(ADC1);
+		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+		{
+			;
+		}
 	temp = LL_ADC_REG_ReadConversionData12(ADC1);
 	LL_ADC_ClearFlag_EOC(ADC1);
-	printf("vref read %d, ", temp);
-	
-	vcc_adc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(temp, LL_ADC_RESOLUTION_12B);
+	add += temp;
+	}
+	add /= 32;
+	printf("vref read %d, ", add);
+	vcc_adc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(add, LL_ADC_RESOLUTION_12B);
 	printf("%hu mV\n", vcc_adc);
 }
 
