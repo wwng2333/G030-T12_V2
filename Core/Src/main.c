@@ -319,7 +319,7 @@ void MainScreen(u8g2_t *u8g2)
   u8g2_SetFontDirection(u8g2, 0);
   do
   {
-    u8g2_SetFont(u8g2, u8g2_font_9x15_tn);
+    u8g2_SetFont(u8g2, u8g2_font_9x15_tr);
     u8g2_DrawStr(u8g2, 0, 10, "SET:");
     sprintf(sprintf_tmp, "%hu", (uint16_t)Setpoint);
     u8g2_DrawStr(u8g2, 40, 10, sprintf_tmp);
