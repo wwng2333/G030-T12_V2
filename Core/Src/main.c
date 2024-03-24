@@ -31,6 +31,7 @@
 #include "i2c.h"
 #include "PID.h"
 #include "math.h"
+#include "Flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,7 +60,7 @@ PID_TypeDef TPID;
 
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
-double consKp=11, consKi=4, consKd=5;
+double consKp=66, consKi=4, consKd=2;
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -336,7 +337,7 @@ void RawTemp_Read(void)
 {
 	uint16_t result;
 	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
-	LL_mDelay(10); // wait for voltage to settle
+	LL_mDelay(1); // wait for voltage to settle
 	
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
 	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
@@ -388,6 +389,7 @@ void SENSORCheck(void)
 	LL_mDelay(10); // wait for voltage to settle
 	
 	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);
+	Vin_Read();
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);			// turn on again heater
   RawTemp += (temp - RawTemp) * SMOOTHIE;     // stabilize ADC temperature reading
   calculateTemp();                            // calculate real temperature value
