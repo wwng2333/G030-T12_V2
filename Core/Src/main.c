@@ -115,7 +115,6 @@ volatile bool     handleMoved;
 // Variables for temperature control
 uint16_t  SetTemp, ShowTemp, gap, Step;
 double    Input, Output, Setpoint, RawTemp, CurrentTemp, ChipTemp;
-
 // Variables for voltage readings
 uint16_t  Vcc, Vin;
  
@@ -221,8 +220,8 @@ int main(void)
 	Vin_Read();
 	
   // read and set current iron temperature
-  SetTemp  = DefaultTemp;
-  RawTemp  = denoiseAnalog(LL_ADC_CHANNEL_10);
+  SetTemp = DefaultTemp;
+  RawTemp_Read();
   ChipTemp = TMP75_ReadTemp();
   calculateTemp();
 
@@ -340,7 +339,7 @@ void RawTemp_Read(void)
 	
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
 	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
-	printf("t12:%hu mV\n", (uint16_t)RawTemp);
+	//printf("t12:%hu mV\n", (uint16_t)RawTemp);
 }
 
 void Vref_Read(void) //LL_ADC_CHANNEL_VREFINT

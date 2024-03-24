@@ -42,7 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-extern double Setpoint;
+extern uint16_t SetTemp;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -164,11 +164,13 @@ void EXTI4_15_IRQHandler(void)
 	{
 		if(b_value == RESET && b_flag == 1)
 		{
-			Setpoint += TEMP_STEP;
+			printf("+");
+			SetTemp += TEMP_STEP;
 		}
 		if(b_value == SET && b_flag == 0)
 		{
-			Setpoint -= TEMP_STEP;
+			printf("-");
+			SetTemp -= TEMP_STEP;
 		}
 		count = 0;
 	}
