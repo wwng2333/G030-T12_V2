@@ -30,6 +30,7 @@
 #include "stdio.h"
 #include "i2c.h"
 #include "PID.h"
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,12 +52,14 @@
 
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
-uint16_t t12_adc, vin_adc, vcc_adc, temp_adc;
-uint16_t EC11_val = 150;
+uint16_t temp_adc;
 uint8_t PWM_Output;
 
 PID_TypeDef TPID;
-double PID_Temp, PID_Out, PID_Target;
+
+// Define the aggressive and conservative PID tuning parameters
+double aggKp=11, aggKi=0.5, aggKd=1;
+double consKp=11, consKi=3, consKd=5;
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -71,18 +74,83 @@ bool      beepEnable  = BEEP_ENABLE;
 bool      BodyFlip    = BODYFLIP;
 bool      ECReverse   = ECREVERSE;
 
+// Default values for tips
+uint16_t  CalTemp[TIPMAX][4] = {TEMP200, TEMP280, TEMP360, TEMPCHP};
+char      TipName[TIPMAX][TIPNAMELENGTH] = {TIPNAME};
+uint8_t   CurrentTip   = 0;
+uint8_t   NumberOfTips = 1;
+
+// Menu items
+const char *SetupItems[]       = { "Setup Menu", "Tip Settings", "Temp Settings",
+                                   "Timer Settings", "Control Type", "Main Screen",
+                                   "Buzzer", "Screen Flip", "EC Reverse", "Information", "Return" };
+const char *TipItems[]         = { "Tip:", "Change Tip", "Calibrate Tip", 
+                                   "Rename Tip", "Delete Tip", "Add new Tip", "Return" };
+const char *TempItems[]        = { "Temp Settings", "Default Temp", "Sleep Temp", 
+                                   "Boost Temp", "Return" };
+const char *TimerItems[]       = { "Timer Settings", "Sleep Timer", "Off Timer", 
+                                   "Boost Timer", "Return" };
+const char *ControlTypeItems[] = { "Control Type", "Direct", "PID" };
+const char *MainScreenItems[]  = { "Main Screen", "Big Numbers", "More Infos" };
+const char *StoreItems[]       = { "Store Settings ?", "No", "Yes" };
+const char *SureItems[]        = { "Are you sure ?", "No", "Yes" };
+const char *BuzzerItems[]      = { "Buzzer", "Disable", "Enable" };
+const char *FlipItems[]        = { "Screen Flip", "Disable", "Enable" };
+const char *ECReverseItems[]   = { "EC Reverse", "Disable", "Enable" };
+const char *DefaultTempItems[] = { "Default Temp", "\xB0""C" };
+const char *SleepTempItems[]   = { "Sleep Temp", "\xB0""C" };
+const char *BoostTempItems[]   = { "Boost Temp", "\xB0""C" };
+const char *SleepTimerItems[]  = { "Sleep Timer", "Minutes" };
+const char *OffTimerItems[]    = { "Off Timer", "Minutes" };
+const char *BoostTimerItems[]  = { "Boost Timer", "Seconds" };
+const char *DeleteMessage[]    = { "Warning", "You cannot", "delete your", "last tip!" };
+const char *MaxTipMessage[]    = { "Warning", "You reached", "maximum number", "of tips!" };
+
+// Variables for pin change interrupt
+volatile uint8_t  a0, b0, c0, d0;
+volatile bool     ab0;
+volatile int      count, countMin, countMax, countStep;
+volatile bool     handleMoved;
+ 
+// Variables for temperature control
+uint16_t  SetTemp, ShowTemp, gap, Step;
+double    Input, Output, Setpoint, RawTemp, CurrentTemp, ChipTemp;
+
+// Variables for voltage readings
+uint16_t  Vcc, Vin;
+ 
+// State variables
+bool      inSleepMode = false;
+bool      inOffMode   = false;
+bool      inBoostMode = false;
+bool      inCalibMode = false;
+bool      isWorky     = true;
+bool      beepIfWorky = true;
+bool      TipIsPresent= true;
+
+// Timing variables
+uint32_t  sleepmillis;
+uint32_t  boostmillis;
+uint32_t  buttonmillis;
+uint8_t   goneMinutes;
+uint8_t   goneSeconds;
+uint8_t   SensorCounter = 255;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void MainScreen(u8g2_t *u8g2);
-void T12_ADC_Read(void);
-void Vin_ADC_Read(void);
-void Vref_ADC_Read(void);
+void RawTemp_Read(void);
+void Vin_Read(void);
+void Vref_Read(void);
 void Temp_ADC_Read(void);
 uint16_t denoiseAnalog(uint32_t adc_ch);
+void calculateTemp(void);
+void Thermostat(void);
 void beep(void);
+uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -134,10 +202,10 @@ int main(void)
 	u8g2_InitDisplay(&u8g2);
 	u8g2_SetPowerSave(&u8g2, 0);
 	
-	PID(&TPID, &PID_Temp, &PID_Out, &PID_Target, 2, 0.5, 0.5, _PID_P_ON_E, _PID_CD_DIRECT);
+	PID(&TPID, &Input, &Output, &Setpoint, aggKp, aggKi, aggKd, _PID_P_ON_E, _PID_CD_DIRECT);
 	PID_SetMode(&TPID, _PID_MODE_AUTOMATIC);
 	PID_SetSampleTime(&TPID, -1);
-	PID_SetOutputLimits(&TPID, 0, 199);
+	PID_SetOutputLimits(&TPID, 0, 1999);
 	
 	LL_TIM_EnableAllOutputs(TIM3);
 	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
@@ -148,6 +216,17 @@ int main(void)
 	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
 	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
 	
+	// read supply voltages in mV
+	Vref_Read();
+	Vin_Read();
+	
+  // read and set current iron temperature
+  SetTemp  = DefaultTemp;
+  RawTemp  = denoiseAnalog(LL_ADC_CHANNEL_10);
+  ChipTemp = TMP75_ReadTemp();
+  calculateTemp();
+
+	
 	beep(); beep();
   /* USER CODE END 2 */
 
@@ -155,18 +234,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		TMP75_ReadTemp();
-		//Temp_ADC_Read();
-		Vref_ADC_Read();
-		T12_ADC_Read();
-		Vin_ADC_Read();
-		PID_Temp = t12_adc;
-		PID_Target = EC11_val;
-		PID_Compute(&TPID);
-		LL_TIM_OC_SetCompareCH1(TIM3, PID_Out*10);
-		PWM_Output = PID_Out / 199 * 100;
+		RawTemp_Read();
+		Thermostat();
 		MainScreen(&u8g2);
-		LL_mDelay(30);
+		LL_mDelay(50);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -228,47 +299,57 @@ void MainScreen(u8g2_t *u8g2)
   {
     u8g2_SetFont(u8g2, u8g2_font_9x15_te);
     u8g2_DrawStr(u8g2, 0, 10, "SET:");
-    sprintf(sprintf_tmp, "%d", EC11_val);
+    sprintf(sprintf_tmp, "%hu", (uint16_t)Setpoint);
     u8g2_DrawStr(u8g2, 40, 10, sprintf_tmp);
-    sprintf(sprintf_tmp, " %d%%", PWM_Output);
+		
+		if(ShowTemp > 500) strcpy(sprintf_tmp, "ERROR");
+		else if(inOffMode) strcpy(sprintf_tmp, "  OFF");
+		else if(inSleepMode) strcpy(sprintf_tmp, "SLEEP");
+		else if(inBoostMode) strcpy(sprintf_tmp, "BOOST");
+		else if(isWorky) strcpy(sprintf_tmp, "WORKY");
+		else if(Output < 180) strcpy(sprintf_tmp, " HEAT");
+		else strcpy(sprintf_tmp, " HOLD");
+		//PWM_Output = Output / 1999;
+    //sprintf(sprintf_tmp, " %d%%", PWM_Output);
     u8g2_DrawStr(u8g2, 83, 10, sprintf_tmp);
+		
     u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
-		sprintf(sprintf_tmp, "%.1fV", (vin_adc*0.001*((47 + 4.7) / 4.7)));
+		sprintf(sprintf_tmp, "%.1fV", (Vin*0.001*((47 + 4.7) / 4.7)));
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
     u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
-		sprintf(sprintf_tmp, "%d", t12_adc);
+		sprintf(sprintf_tmp, "%d", (uint16_t)RawTemp);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
 }
 
-void Vin_ADC_Read(void) //LL_ADC_CHANNEL_11
+void Vin_Read(void) //LL_ADC_CHANNEL_11
 {
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_11);
 	printf("vin read %d, ", result);
-	vin_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, result, LL_ADC_RESOLUTION_12B);
-	printf("%hu mV\n", vin_adc);
+	Vin = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
+	printf("%hu mV\n", Vin);
 }
 
-void T12_ADC_Read(void)
+void RawTemp_Read(void)
 {
 	uint16_t result;
 	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
 	LL_mDelay(10); // wait for voltage to settle
 	
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
-	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, result, LL_ADC_RESOLUTION_12B);
-	printf("t12:%hu mV\n", t12_adc);
+	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
+	printf("t12:%hu mV\n", (uint16_t)RawTemp);
 }
 
-void Vref_ADC_Read(void) //LL_ADC_CHANNEL_VREFINT
+void Vref_Read(void) //LL_ADC_CHANNEL_VREFINT
 {
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_VREFINT);
 	printf("vref read %d, ", result);
-	vcc_adc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(result, LL_ADC_RESOLUTION_12B);
-	printf("%hu mV\n", vcc_adc);
+	Vcc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(result, LL_ADC_RESOLUTION_12B);
+	printf("%hu mV\n", Vcc);
 }
 
 void Temp_ADC_Read(void)
@@ -277,7 +358,7 @@ void Temp_ADC_Read(void)
 	result = denoiseAnalog(LL_ADC_CHANNEL_TEMPSENSOR);
 	printf("temp read %d, ", result);
 	
-	temp_adc = __LL_ADC_CALC_TEMPERATURE(vcc_adc, result, LL_ADC_RESOLUTION_12B);
+	temp_adc = __LL_ADC_CALC_TEMPERATURE(Vcc, result, LL_ADC_RESOLUTION_12B);
 	printf("%hu C\n", temp_adc);
 }
 
@@ -299,6 +380,36 @@ uint16_t denoiseAnalog(uint32_t adc_ch)
   return (result >> 5);                 // devide by 32 and return value
 }
 
+// calculates real temperature value according to ADC reading and calibration values
+void calculateTemp(void) 
+{
+  if      (RawTemp < 200) CurrentTemp = map (RawTemp,   0, 200,                     21, CalTemp[CurrentTip][0]);
+  else if (RawTemp < 280) CurrentTemp = map (RawTemp, 200, 280, CalTemp[CurrentTip][0], CalTemp[CurrentTip][1]);
+  else                    CurrentTemp = map (RawTemp, 280, 360, CalTemp[CurrentTip][1], CalTemp[CurrentTip][2]);
+}
+
+void Thermostat(void)
+{
+  // define Setpoint acoording to current working mode
+  if      (inOffMode)   Setpoint = 0;
+  else if (inSleepMode) Setpoint = SleepTemp;
+  else if (inBoostMode) Setpoint = SetTemp + BoostTemp;
+  else                  Setpoint = SetTemp; 
+
+  // control the heater (PID or direct)
+  gap = fabs(Setpoint - CurrentTemp);
+  if (PIDenable) {
+    Input = CurrentTemp;
+    if (gap < 30) PID_SetTunings(&TPID, consKp, consKi, consKd);
+    else PID_SetTunings(&TPID, aggKp, aggKi, aggKd);
+    PID_Compute(&TPID);
+  } else {
+    // turn on heater if current temperature is below setpoint
+    if ((CurrentTemp + 0.5) < Setpoint) Output = 0; else Output = 1999;
+  }
+	LL_TIM_OC_SetCompareCH1(TIM3, Output);
+}
+
 void beep(void)
 {
 	if(beepEnable)
@@ -308,6 +419,12 @@ void beep(void)
 		LL_TIM_DisableCounter(TIM14);
 	}
 }
+
+uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
+{
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 /* USER CODE END 4 */
 
 /**
