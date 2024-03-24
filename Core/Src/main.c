@@ -59,7 +59,7 @@ PID_TypeDef TPID;
 
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
-double consKp=11, consKi=3, consKd=5;
+double consKp=11, consKi=4, consKd=5;
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -75,7 +75,7 @@ bool      BodyFlip    = BODYFLIP;
 bool      ECReverse   = ECREVERSE;
 
 // Default values for tips
-uint16_t  CalTemp[TIPMAX][4] = {TEMP200, TEMP280, TEMP360, TEMPCHP};
+uint16_t  CalTemp[TIPMAX][4] = {TEMP1212, TEMP1696, TEMP2181, TEMPCHP};
 char      TipName[TIPMAX][TIPNAMELENGTH] = {TIPNAME};
 uint8_t   CurrentTip   = 0;
 uint8_t   NumberOfTips = 1;
@@ -147,6 +147,7 @@ void Vref_Read(void);
 void Temp_ADC_Read(void);
 uint16_t denoiseAnalog(uint32_t adc_ch);
 void calculateTemp(void);
+void SENSORCheck(void);
 void Thermostat(void);
 void beep(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
@@ -225,7 +226,6 @@ int main(void)
   ChipTemp = TMP75_ReadTemp();
   calculateTemp();
 
-	
 	beep(); beep();
   /* USER CODE END 2 */
 
@@ -233,10 +233,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		RawTemp_Read();
+		SENSORCheck();
 		Thermostat();
 		MainScreen(&u8g2);
-		LL_mDelay(50);
+		LL_mDelay(5);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -308,16 +308,17 @@ void MainScreen(u8g2_t *u8g2)
 		else if(isWorky) strcpy(sprintf_tmp, "WORKY");
 		else if(Output < 180) strcpy(sprintf_tmp, " HEAT");
 		else strcpy(sprintf_tmp, " HOLD");
-		//PWM_Output = Output / 1999;
-    //sprintf(sprintf_tmp, " %d%%", PWM_Output);
     u8g2_DrawStr(u8g2, 83, 10, sprintf_tmp);
+		PWM_Output = Output / 1999 * 100;
+    sprintf(sprintf_tmp, " %d%%", PWM_Output);
+    u8g2_DrawStr(u8g2, 85, 32, sprintf_tmp);
 		
     u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
 		sprintf(sprintf_tmp, "%.1fV", (Vin*0.001*((47 + 4.7) / 4.7)));
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
     u8g2_SetFont(u8g2, u8g2_font_freedoomr25_mn);
-		sprintf(sprintf_tmp, "%d", (uint16_t)RawTemp);
+		sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
 }
@@ -340,6 +341,7 @@ void RawTemp_Read(void)
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
 	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
 	//printf("t12:%hu mV\n", (uint16_t)RawTemp);
+	LL_TIM_OC_SetCompareCH1(TIM3, Output);
 }
 
 void Vref_Read(void) //LL_ADC_CHANNEL_VREFINT
@@ -379,12 +381,37 @@ uint16_t denoiseAnalog(uint32_t adc_ch)
   return (result >> 5);                 // devide by 32 and return value
 }
 
+// reads temperature, vibration switch and supply voltages
+void SENSORCheck(void)
+{
+	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
+	LL_mDelay(10); // wait for voltage to settle
+	
+	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);
+	LL_TIM_OC_SetCompareCH1(TIM3, Output);			// turn on again heater
+  RawTemp += (temp - RawTemp) * SMOOTHIE;     // stabilize ADC temperature reading
+  calculateTemp();                            // calculate real temperature value
+	
+  // stabilize displayed temperature when around setpoint
+  if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5)) ShowTemp = CurrentTemp;
+  if (fabs(ShowTemp - Setpoint) <= 1) ShowTemp = Setpoint;
+	
+	  // set state variable if temperature is in working range; beep if working temperature was just reached
+  gap = fabs(SetTemp - CurrentTemp);
+  if (gap < 5) {
+    if (!isWorky && beepIfWorky) beep();
+    isWorky = true;
+    beepIfWorky = false;
+  }
+  else isWorky = false;
+}
+
 // calculates real temperature value according to ADC reading and calibration values
 void calculateTemp(void) 
 {
-  if      (RawTemp < 200) CurrentTemp = map (RawTemp,   0, 200,                     21, CalTemp[CurrentTip][0]);
-  else if (RawTemp < 280) CurrentTemp = map (RawTemp, 200, 280, CalTemp[CurrentTip][0], CalTemp[CurrentTip][1]);
-  else                    CurrentTemp = map (RawTemp, 280, 360, CalTemp[CurrentTip][1], CalTemp[CurrentTip][2]);
+  if      (RawTemp < 1212) CurrentTemp = map(RawTemp, 0, 1212, 21, CalTemp[CurrentTip][0]);
+  else if (RawTemp < 1696) CurrentTemp = map(RawTemp, 1212, 1696, CalTemp[CurrentTip][0], CalTemp[CurrentTip][1]);
+  else CurrentTemp = map(RawTemp, 1696, 2181, CalTemp[CurrentTip][1], CalTemp[CurrentTip][2]);
 }
 
 void Thermostat(void)

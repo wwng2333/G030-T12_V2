@@ -88,15 +88,15 @@ extern "C" {
 // Default temperature control values (recommended soldering temperature: 300-380°C)
 #define TEMP_MIN      150       // min selectable temperature
 #define TEMP_MAX      400       // max selectable temperature
-#define TEMP_DEFAULT  320       // default start setpoint
+#define TEMP_DEFAULT  200       // default start setpoint
 #define TEMP_SLEEP    150       // temperature in sleep mode
 #define TEMP_BOOST     50       // temperature increase in boost mode
 #define TEMP_STEP      10       // rotary encoder temp change steps
 
 // Default tip temperature calibration values
-#define TEMP200       216       // temperature at ADC = 200
-#define TEMP280       308       // temperature at ADC = 280
-#define TEMP360       390       // temperature at ADC = 360
+#define TEMP1212       216       // temperature at ADC = 200 (5V, 10bit ADC)
+#define TEMP1696       308       // temperature at ADC = 280
+#define TEMP2181       390       // temperature at ADC = 360
 #define TEMPCHP       30        // chip temperature while calibration
 #define TIPMAX        8         // max number of tips
 #define TIPNAMELENGTH 6         // max length of tip names (including termination)
@@ -110,7 +110,7 @@ extern "C" {
 // Control values
 #define TIME2SETTLE   950       // time in microseconds to allow OpAmp output to settle
 #define SMOOTHIE      0.05      // OpAmp output smooth factor (1=no smoothing; 0.05 default)
-#define PID_ENABLE    false     // enable PID control
+#define PID_ENABLE    true     // enable PID control
 #define BEEP_ENABLE   true      // enable/disable buzzer
 #define BODYFLIP      false     // enable/disable screen flip
 #define ECREVERSE     false     // enable/disable rotary encoder reverse
