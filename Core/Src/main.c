@@ -58,6 +58,19 @@ uint8_t PWM_Output;
 PID_TypeDef TPID;
 double PID_Temp, PID_Out, PID_Target;
 
+// Default values that can be changed by the user and stored in the EEPROM
+uint16_t  DefaultTemp = TEMP_DEFAULT;
+uint16_t  SleepTemp   = TEMP_SLEEP;
+uint8_t   BoostTemp   = TEMP_BOOST;
+uint8_t   time2sleep  = TIME2SLEEP;
+uint8_t   time2off    = TIME2OFF;
+uint8_t   timeOfBoost = TIMEOFBOOST;
+uint8_t   MainScrType = MAINSCREEN;
+bool      PIDenable   = PID_ENABLE;
+bool      beepEnable  = BEEP_ENABLE;
+bool      BodyFlip    = BODYFLIP;
+bool      ECReverse   = ECREVERSE;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -69,6 +82,7 @@ void Vin_ADC_Read(void);
 void Vref_ADC_Read(void);
 void Temp_ADC_Read(void);
 uint16_t denoiseAnalog(uint32_t adc_ch);
+void beep(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -130,9 +144,11 @@ int main(void)
 	LL_TIM_OC_SetCompareCH1(TIM3, 0);
 	LL_TIM_EnableCounter(TIM3);
 
-	LL_TIM_EnableAllOutputs(TIM14);
+	LL_TIM_EnableAllOutputs(TIM14); //Enable TIM for beep
 	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
-	//LL_TIM_EnableCounter(TIM14);
+	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
+	
+	beep(); beep();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -151,7 +167,6 @@ int main(void)
 		PWM_Output = PID_Out / 199 * 100;
 		MainScreen(&u8g2);
 		LL_mDelay(30);
-		//beep();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -284,6 +299,15 @@ uint16_t denoiseAnalog(uint32_t adc_ch)
   return (result >> 5);                 // devide by 32 and return value
 }
 
+void beep(void)
+{
+	if(beepEnable)
+	{
+		LL_TIM_EnableCounter(TIM14);
+		LL_mDelay(32);
+		LL_TIM_DisableCounter(TIM14);
+	}
+}
 /* USER CODE END 4 */
 
 /**

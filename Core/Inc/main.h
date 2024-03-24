@@ -63,6 +63,59 @@ extern "C" {
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
+// Firmware version
+#define VERSION       "v1.9"
+
+// Type of MOSFET
+#define N_MOSFET                // P_MOSFET or N_MOSFET
+
+// Type of OLED Controller
+#define SSD1306                 // SSD1306 or SH1106
+
+// Type of rotary encoder
+#define ROTARY_TYPE   1         // 0: 2 increments/step; 1: 4 increments/step (default)
+
+// Pins
+#define SENSOR_PIN    A0        // tip temperature sense
+#define VIN_PIN       A1        // input voltage sense
+#define BUZZER_PIN     5        // buzzer
+#define BUTTON_PIN     6        // rotary encoder switch
+#define ROTARY_1_PIN   7        // rotary encoder 1
+#define ROTARY_2_PIN   8        // rotary encoder 2
+#define CONTROL_PIN    9        // heater MOSFET PWM control
+#define SWITCH_PIN    10        // handle vibration switch
+
+// Default temperature control values (recommended soldering temperature: 300-380°C)
+#define TEMP_MIN      150       // min selectable temperature
+#define TEMP_MAX      400       // max selectable temperature
+#define TEMP_DEFAULT  320       // default start setpoint
+#define TEMP_SLEEP    150       // temperature in sleep mode
+#define TEMP_BOOST     50       // temperature increase in boost mode
+#define TEMP_STEP      10       // rotary encoder temp change steps
+
+// Default tip temperature calibration values
+#define TEMP200       216       // temperature at ADC = 200
+#define TEMP280       308       // temperature at ADC = 280
+#define TEMP360       390       // temperature at ADC = 360
+#define TEMPCHP       30        // chip temperature while calibration
+#define TIPMAX        8         // max number of tips
+#define TIPNAMELENGTH 6         // max length of tip names (including termination)
+#define TIPNAME       "BC1.5"   // default tip name
+
+// Default timer values (0 = disabled)
+#define TIME2SLEEP     5        // time to enter sleep mode in minutes
+#define TIME2OFF      15        // time to shut off heater in minutes
+#define TIMEOFBOOST   40        // time to stay in boost mode in seconds
+
+// Control values
+#define TIME2SETTLE   950       // time in microseconds to allow OpAmp output to settle
+#define SMOOTHIE      0.05      // OpAmp output smooth factor (1=no smoothing; 0.05 default)
+#define PID_ENABLE    false     // enable PID control
+#define BEEP_ENABLE   true      // enable/disable buzzer
+#define BODYFLIP      false     // enable/disable screen flip
+#define ECREVERSE     false     // enable/disable rotary encoder reverse
+#define MAINSCREEN    0         // type of main screen (0: big numbers; 1: more infos)
+
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
