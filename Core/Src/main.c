@@ -68,6 +68,7 @@ void T12_ADC_Read(void);
 void Vin_ADC_Read(void);
 void Vref_ADC_Read(void);
 void Temp_ADC_Read(void);
+uint16_t denoiseAnalog(uint32_t adc_ch);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -139,12 +140,10 @@ int main(void)
   while (1)
   {
 		TMP75_ReadTemp();
-		Temp_ADC_Read();
+		//Temp_ADC_Read();
 		Vref_ADC_Read();
-		Vin_ADC_Read();
-		LL_TIM_OC_SetCompareCH1(TIM3, 0); //Disable Output
-		LL_mDelay(10);
 		T12_ADC_Read();
+		Vin_ADC_Read();
 		PID_Temp = t12_adc;
 		PID_Target = EC11_val;
 		PID_Compute(&TPID);
@@ -228,104 +227,61 @@ void MainScreen(u8g2_t *u8g2)
   } while (u8g2_NextPage(u8g2));
 }
 
-void Vin_ADC_Read(void)
+void Vin_ADC_Read(void) //LL_ADC_CHANNEL_11
 {
-	uint16_t temp;
-	//LL_ADC_Disable(ADC1);
-	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_11);
-	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_11, LL_ADC_SAMPLINGTIME_160CYCLES_5);
-	//LL_ADC_Enable(ADC1);
-	LL_ADC_REG_StartConversion(ADC1);
-	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-	{
-		;
-	}
-	temp = LL_ADC_REG_ReadConversionData12(ADC1);
-	LL_ADC_ClearFlag_EOC(ADC1);
-	printf("vin read %d, ", temp);
-	vin_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, temp, LL_ADC_RESOLUTION_12B);
+	uint16_t result;
+	result = denoiseAnalog(LL_ADC_CHANNEL_11);
+	printf("vin read %d, ", result);
+	vin_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, result, LL_ADC_RESOLUTION_12B);
 	printf("%hu mV\n", vin_adc);
 }
 
 void T12_ADC_Read(void)
 {
-	uint8_t count, real = 0;
-	uint16_t add = 0, temp = 0;
-	//LL_ADC_Disable(ADC1);
-	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_10);
-	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_10, LL_ADC_SAMPLINGTIME_160CYCLES_5);
-	//LL_ADC_Enable(ADC1);
-//	LL_ADC_REG_StartConversion(ADC1);
-//	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-//	{
-//		;
-//	}
-	for(count = 0; count < 32; count++)
-	{
-		LL_ADC_REG_StartConversion(ADC1);
-		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-		{
-			;
-		}
-	temp = LL_ADC_REG_ReadConversionData12(ADC1);
-	LL_ADC_ClearFlag_EOC(ADC1);
-	//printf("adc read %d, ", temp);
-		if(temp < 1000) 
-		{
-			add += temp;
-			real++;
-		}
-	}
-	add /= real;
-	//add = LL_ADC_REG_ReadConversionData12(ADC1);
-	//LL_ADC_ClearFlag_EOC(ADC1);
-	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, add, LL_ADC_RESOLUTION_12B);
+	uint16_t result;
+	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
+	LL_mDelay(10); // wait for voltage to settle
+	
+	result = denoiseAnalog(LL_ADC_CHANNEL_10);
+	t12_adc = __LL_ADC_CALC_DATA_TO_VOLTAGE(vcc_adc, result, LL_ADC_RESOLUTION_12B);
 	printf("t12:%hu mV\n", t12_adc);
 }
 
-void Vref_ADC_Read(void)
+void Vref_ADC_Read(void) //LL_ADC_CHANNEL_VREFINT
 {
-	uint8_t count;
-	uint16_t temp, add = 0;
-	//LL_ADC_Disable(ADC1);
-	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_VREFINT);
-	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_VREFINT, LL_ADC_SAMPLINGTIME_160CYCLES_5);
-	//LL_ADC_Enable(ADC1);
-	for(count = 0; count < 32; count++)
-	{
-		LL_ADC_REG_StartConversion(ADC1);
-		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-		{
-			;
-		}
-	temp = LL_ADC_REG_ReadConversionData12(ADC1);
-	LL_ADC_ClearFlag_EOC(ADC1);
-	add += temp;
-	}
-	add /= 32;
-	printf("vref read %d, ", add);
-	vcc_adc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(add, LL_ADC_RESOLUTION_12B);
+	uint16_t result;
+	result = denoiseAnalog(LL_ADC_CHANNEL_VREFINT);
+	printf("vref read %d, ", result);
+	vcc_adc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(result, LL_ADC_RESOLUTION_12B);
 	printf("%hu mV\n", vcc_adc);
 }
 
 void Temp_ADC_Read(void)
 {
-	uint16_t temp;
-	//LL_ADC_Disable(ADC1);
-	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_TEMPSENSOR);
-	LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_TEMPSENSOR, LL_ADC_SAMPLINGTIME_160CYCLES_5);
-	//LL_ADC_Enable(ADC1);
-	LL_ADC_REG_StartConversion(ADC1);
-	while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
-	{
-		;
-	}
-	temp = LL_ADC_REG_ReadConversionData12(ADC1);
-	LL_ADC_ClearFlag_EOC(ADC1);
-	printf("temp read %d, ", temp);
+	uint16_t result;
+	result = denoiseAnalog(LL_ADC_CHANNEL_TEMPSENSOR);
+	printf("temp read %d, ", result);
 	
-	temp_adc = __LL_ADC_CALC_TEMPERATURE(vcc_adc, temp, LL_ADC_RESOLUTION_12B);
+	temp_adc = __LL_ADC_CALC_TEMPERATURE(vcc_adc, result, LL_ADC_RESOLUTION_12B);
 	printf("%hu C\n", temp_adc);
+}
+
+// average several ADC readings in sleep mode to denoise
+uint16_t denoiseAnalog(uint32_t adc_ch)
+{
+  uint16_t result = 0;
+	LL_ADC_Enable(ADC1);
+	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, adc_ch);
+	LL_ADC_SetChannelSamplingTime(ADC1, adc_ch, LL_ADC_SAMPLINGTIME_160CYCLES_5);
+	for(uint8_t i=0; i<32; i++)
+	{
+		LL_ADC_REG_StartConversion(ADC1);
+		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET);
+		result += LL_ADC_REG_ReadConversionData12(ADC1);
+		LL_ADC_ClearFlag_EOC(ADC1);
+	}
+	LL_ADC_Disable(ADC1);
+  return (result >> 5);                 // devide by 32 and return value
 }
 
 /* USER CODE END 4 */
