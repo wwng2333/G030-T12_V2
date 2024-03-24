@@ -116,6 +116,26 @@ extern "C" {
 #define ECREVERSE     false     // enable/disable rotary encoder reverse
 #define MAINSCREEN    0         // type of main screen (0: big numbers; 1: more infos)
 
+#define EEPROM_IDENT  0xE76C   // to identify if EEPROM was written by this program
+
+typedef struct
+{
+	uint16_t identifier;
+	uint16_t DefaultTemp;
+	uint16_t SleepTemp;
+	uint8_t BoostTemp;
+	uint8_t time2sleep;
+	uint8_t time2off;
+	uint8_t timeOfBoost;
+	uint8_t MainScrType;
+	uint8_t PIDenable;
+	uint8_t beepEnable;
+	uint8_t BodyFlip;
+	uint8_t ECReverse;
+	uint8_t CurrentTip;
+	uint8_t NumberOfTips;
+}SystemParamStore, SystemParamStore_t;
+
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

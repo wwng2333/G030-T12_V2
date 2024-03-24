@@ -18,4 +18,15 @@
 
 #define FLASH_PAGE_SIZE 0x800
 
+#define SYSTEM_ARG_STORE_START_ADDR 0x8007F00
+
+static uint8_t ubFLASH_Unlock(void);
+static uint8_t ubFLASH_Lock(void);
+static uint8_t ubFlash_WaitFor_Operate(uint32_t timeOut);
+static uint32_t ulGetPage(uint32_t startAddr);
+static uint8_t ubFLASH_PageErase(uint32_t page);
+static uint8_t ubFLASH_Program_DoubleWord(uint32_t addr, uint64_t data);
+uint8_t ubFlash_Write_DoubleWord(uint32_t startAddr, uint64_t * pDat, uint16_t len);
+void vFlash_Read_DoubleWord(uint32_t startAddr, uint64_t * pDat, uint16_t len);
+
 #endif

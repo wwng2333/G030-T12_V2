@@ -58,6 +58,8 @@ uint8_t PWM_Output;
 
 PID_TypeDef TPID;
 
+SystemParamStore SystemParam = {.identifier = EEPROM_IDENT};
+
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
 double consKp=66, consKi=4, consKd=2;
@@ -217,6 +219,26 @@ int main(void)
 	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
 	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
 	
+	//Test flash
+	uint16_t len;
+	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
+	if(len > (FLASH_PAGE_SIZE >> 3))
+	{
+		printf("SystemParam size over flash page size...\n");
+	}
+	else
+	{
+//		if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len) != 0x00U)
+//		{
+//			printf("Save param failed!\n");
+//		}
+//		else
+//		{
+//			
+//			printf("Save param OK!\n");
+//		}
+	}
+	
 	// read supply voltages in mV
 	Vref_Read();
 	Vin_Read();
@@ -297,7 +319,7 @@ void MainScreen(u8g2_t *u8g2)
   u8g2_SetFontDirection(u8g2, 0);
   do
   {
-    u8g2_SetFont(u8g2, u8g2_font_9x15_te);
+    u8g2_SetFont(u8g2, u8g2_font_9x15_tn);
     u8g2_DrawStr(u8g2, 0, 10, "SET:");
     sprintf(sprintf_tmp, "%hu", (uint16_t)Setpoint);
     u8g2_DrawStr(u8g2, 40, 10, sprintf_tmp);
