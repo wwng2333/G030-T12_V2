@@ -32,6 +32,7 @@
 #include "PID.h"
 #include "math.h"
 #include "Flash.h"
+#include "stm32_button.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,6 +61,11 @@ PID_TypeDef TPID;
 
 SystemParamStore SystemParam = {0};
 
+//Button_t button1;
+const Btn_init_attr attr = { .GPIO_PIN_x = LL_GPIO_PIN_0, .GPIOx = GPIOA, .event =
+		{ PRESS_DOWN }, .event_num = ONE, .active_level = 0 };
+Button_t button1;
+		
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
 double consKp=66, consKi=4, consKd=2;
@@ -249,6 +255,7 @@ int main(void)
 	// read supply voltages in mV
 	Vref_Read();
 	Vin_Read();
+	button1 = button_init(&attr);
 	
   // read and set current iron temperature
   SetTemp = DefaultTemp;
@@ -263,6 +270,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		button_ticks();
 		SENSORCheck();
 		Thermostat();
 		MainScreen(&u8g2);
@@ -370,7 +378,7 @@ void RawTemp_Read(void)
 	
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
 	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
-	//printf("t12:%hu mV\n", (uint16_t)RawTemp);
+	printf("t12:%hu mV\n", (uint16_t)RawTemp);
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);
 }
 
@@ -397,17 +405,20 @@ void Temp_ADC_Read(void)
 uint16_t denoiseAnalog(uint32_t adc_ch)
 {
   uint16_t result = 0;
-	LL_ADC_Enable(ADC1);
+	//LL_ADC_Enable(ADC1);
 	LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, adc_ch);
 	LL_ADC_SetChannelSamplingTime(ADC1, adc_ch, LL_ADC_SAMPLINGTIME_160CYCLES_5);
 	for(uint8_t i=0; i<32; i++)
 	{
 		LL_ADC_REG_StartConversion(ADC1);
-		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET);
+		while(LL_ADC_IsActiveFlag_EOC(ADC1) == RESET)
+		{
+			;
+		}
 		result += LL_ADC_REG_ReadConversionData12(ADC1);
 		LL_ADC_ClearFlag_EOC(ADC1);
 	}
-	LL_ADC_Disable(ADC1);
+	//LL_ADC_Disable(ADC1);
   return (result >> 5);                 // devide by 32 and return value
 }
 
@@ -499,6 +510,15 @@ void Read_System_Parmeter(void)
 //	}
 //	
 //	vFlash_Read_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len);
+}
+
+void button_callback(Button_t btn, PressEvent event, uint8_t repeat) 
+{
+	if (btn == button1) {
+		if (event == PRESS_DOWN) {
+			printf("PRESS_DOWN\n");
+		}
+	}
 }
 
 /* USER CODE END 4 */
