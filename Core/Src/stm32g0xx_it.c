@@ -43,6 +43,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 extern uint16_t SetTemp;
+extern uint32_t TIM16_Tick;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -186,7 +187,11 @@ void EXTI4_15_IRQHandler(void)
 void TIM16_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM16_IRQn 0 */
-
+	if(LL_TIM_IsActiveFlag_CC1(TIM16))
+	{
+		TIM16_Tick++;
+		LL_TIM_ClearFlag_CC1(TIM16);
+	}
   /* USER CODE END TIM16_IRQn 0 */
   /* USER CODE BEGIN TIM16_IRQn 1 */
 

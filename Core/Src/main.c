@@ -146,6 +146,8 @@ uint8_t   goneMinutes;
 uint8_t   goneSeconds;
 uint8_t   SensorCounter = 255;
 
+__IO uint32_t TIM16_Tick = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -229,9 +231,10 @@ int main(void)
 	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
 	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
 	
-	LL_TIM_EnableAllOutputs(TIM16); //Enable TIM for beep
+	LL_TIM_EnableAllOutputs(TIM16); //Enable TIM for tick
+	LL_TIM_EnableIT_CC1(TIM16); //Enable TIM16 Interrupt
 	LL_TIM_CC_EnableChannel(TIM16, LL_TIM_CHANNEL_CH1N);
-	LL_TIM_EnableCounter(TIM16); //Disable now, beep later.
+	LL_TIM_EnableCounter(TIM16);
 	//Test flash
 //	uint16_t len;
 //	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
