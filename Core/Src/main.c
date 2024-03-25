@@ -33,6 +33,7 @@
 #include "math.h"
 #include "Flash.h"
 #include "stm32_button.h"
+#include "timer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -166,6 +167,7 @@ void beep(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
 void Read_System_Parmeter(void);
 uint32_t get_sys_tick(void);
+void t1_cb(void* para);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -236,6 +238,10 @@ int main(void)
 	LL_TIM_EnableIT_CC1(TIM16); //Enable TIM16 Interrupt
 	LL_TIM_CC_EnableChannel(TIM16, LL_TIM_CHANNEL_CH1N);
 	LL_TIM_EnableCounter(TIM16);
+	timer_init();
+	timer_id t1 = timer_creat(t1_cb, 10, 1000, false, NULL);
+	timer_sched();
+	timer_start(t1);
 	//Test flash
 //	uint16_t len;
 //	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
@@ -543,6 +549,11 @@ void button_callback(Button_t btn, PressEvent event, uint8_t repeat)
 uint32_t get_sys_tick(void)
 {
 	return TIM16_Tick;
+}
+
+void t1_cb(void* para)
+{
+	printf("t1_cb\n");
 }
 
 /* USER CODE END 4 */

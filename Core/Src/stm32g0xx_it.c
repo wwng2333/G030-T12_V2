@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "timer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -190,6 +191,7 @@ void TIM16_IRQHandler(void)
 	if(LL_TIM_IsActiveFlag_CC1(TIM16))
 	{
 		TIM16_Tick++;
+		timer_sched();
 		LL_TIM_ClearFlag_CC1(TIM16);
 	}
   /* USER CODE END TIM16_IRQn 0 */
