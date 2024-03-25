@@ -82,7 +82,7 @@
           </BeforeMake>
           <AfterMake>
             <RunUserProg1>0</RunUserProg1>
-            <RunUserProg2>0</RunUserProg2>
+            <RunUserProg2>1</RunUserProg2>
             <UserProg1Name></UserProg1Name>
             <UserProg2Name></UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
@@ -426,6 +426,11 @@
               <FilePath>..\Core\Src\Flash.c</FilePath>
             </File>
             <File>
+              <FileName>stm32_button.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\stm32_button.c</FilePath>
+            </File>
+            <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/main.c</FilePath>
@@ -454,11 +459,6 @@
               <FileName>stm32g0xx_it.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32g0xx_it.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32_button.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\stm32_button.c</FilePath>
             </File>
           </Files>
         </Group>

@@ -63,8 +63,10 @@ SystemParamStore SystemParam = {0};
 
 //Button_t button1;
 const Btn_init_attr attr = { .GPIO_PIN_x = LL_GPIO_PIN_0, .GPIOx = GPIOA, .event =
-		{ PRESS_DOWN }, .event_num = ONE, .active_level = 0 };
-Button_t button1;
+		{ SINGLE_CLICK }, .event_num = ONE, .active_level = 0 };
+const Btn_init_attr attr2 = { .GPIO_PIN_x = LL_GPIO_PIN_0, .GPIOx = GPIOA, .event =
+		{ DOUBLE_CLICK }, .event_num = ONE, .active_level = 0 };
+Button_t button1, button2;
 		
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
@@ -206,6 +208,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM17_Init();
   MX_TIM14_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 	Activate_ADC();
 	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_4wire_hw_spi, u8x8_stm32_gpio_and_delay);
@@ -226,6 +229,9 @@ int main(void)
 	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
 	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
 	
+	LL_TIM_EnableAllOutputs(TIM16); //Enable TIM for beep
+	LL_TIM_CC_EnableChannel(TIM16, LL_TIM_CHANNEL_CH1N);
+	LL_TIM_EnableCounter(TIM16); //Disable now, beep later.
 	//Test flash
 //	uint16_t len;
 //	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
@@ -256,6 +262,7 @@ int main(void)
 	Vref_Read();
 	Vin_Read();
 	button1 = button_init(&attr);
+	button2 = button_init(&attr2);
 	
   // read and set current iron temperature
   SetTemp = DefaultTemp;
@@ -274,7 +281,7 @@ int main(void)
 		SENSORCheck();
 		Thermostat();
 		MainScreen(&u8g2);
-		LL_mDelay(5);
+		LL_mDelay(1);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -365,9 +372,9 @@ void Vin_Read(void) //LL_ADC_CHANNEL_11
 {
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_11);
-	printf("vin read %d, ", result);
+	//printf("vin read %d, ", result);
 	Vin = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
-	printf("%hu mV\n", Vin);
+	//printf("%hu mV\n", Vin);
 }
 
 void RawTemp_Read(void)
@@ -515,8 +522,16 @@ void Read_System_Parmeter(void)
 void button_callback(Button_t btn, PressEvent event, uint8_t repeat) 
 {
 	if (btn == button1) {
-		if (event == PRESS_DOWN) {
-			printf("PRESS_DOWN\n");
+		if (event == SINGLE_CLICK) 
+			{
+			printf("SINGLE_CLICK\n");
+		}
+	}
+	else if (btn == button2) 
+	{
+		if(event == DOUBLE_CLICK)
+		{
+			printf("DOUBLE_CLICK\n");
 		}
 	}
 }
