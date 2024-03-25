@@ -165,6 +165,7 @@ void Thermostat(void);
 void beep(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
 void Read_System_Parmeter(void);
+uint32_t get_sys_tick(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -537,6 +538,11 @@ void button_callback(Button_t btn, PressEvent event, uint8_t repeat)
 			printf("DOUBLE_CLICK\n");
 		}
 	}
+}
+
+uint32_t get_sys_tick(void)
+{
+	return TIM16_Tick;
 }
 
 /* USER CODE END 4 */
