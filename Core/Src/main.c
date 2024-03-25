@@ -71,7 +71,7 @@ Button_t button1, button2;
 		
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
-double consKp=66, consKi=4, consKd=2;
+double consKp=1000, consKi=0, consKd=10;
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -149,6 +149,8 @@ uint8_t   SensorCounter = 255;
 
 __IO uint32_t TIM16_Tick = 0;
 
+uint8_t u8g2_update_flag = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -163,11 +165,16 @@ uint16_t denoiseAnalog(uint32_t adc_ch);
 void calculateTemp(void);
 void SENSORCheck(void);
 void Thermostat(void);
+void SetupScreen(void);
+uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected);
 void beep(void);
+void setRotary(int rmin, int rmax, int rstep, int rvalue);
+uint8_t getRotary(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
 void Read_System_Parmeter(void);
 uint32_t get_sys_tick(void);
-void t1_cb(void* para);
+void t1_1s_cb(void* para);
+void t2_300ms_cb(void* para);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -239,9 +246,9 @@ int main(void)
 	LL_TIM_CC_EnableChannel(TIM16, LL_TIM_CHANNEL_CH1N);
 	LL_TIM_EnableCounter(TIM16);
 	timer_init();
-	timer_id t1 = timer_creat(t1_cb, 10, 1000, false, NULL);
+	timer_id t1 = timer_creat(t1_1s_cb, 0, 1000, true, NULL);
+	timer_id t2 = timer_creat(t2_300ms_cb, 0, 300, true, NULL);
 	timer_sched();
-	timer_start(t1);
 	//Test flash
 //	uint16_t len;
 //	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
@@ -279,7 +286,9 @@ int main(void)
   RawTemp_Read();
   ChipTemp = TMP75_ReadTemp();
   calculateTemp();
-
+	
+	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, DefaultTemp);
+	
 	beep(); beep();
   /* USER CODE END 2 */
 
@@ -287,11 +296,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		button_ticks();
+		SetTemp = getRotary();
 		SENSORCheck();
 		Thermostat();
+		button_ticks();
 		MainScreen(&u8g2);
-		LL_mDelay(1);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -485,14 +494,95 @@ void Thermostat(void)
   gap = fabs(Setpoint - CurrentTemp);
   if (PIDenable) {
     Input = CurrentTemp;
-    if (gap < 30) PID_SetTunings(&TPID, consKp, consKi, consKd);
-    else PID_SetTunings(&TPID, aggKp, aggKi, aggKd);
+    if (gap < 30)
+		{
+			PID_SetTunings(&TPID, consKp, consKi, consKd);
+		}
+    else 
+		{
+			PID_SetTunings(&TPID, aggKp, aggKi, aggKd);
+		}
     PID_Compute(&TPID);
   } else {
     // turn on heater if current temperature is below setpoint
     if ((CurrentTemp + 0.5) < Setpoint) Output = 0; else Output = 1999;
   }
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);
+}
+
+void SetupScreen(void)
+{
+	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
+	beep();
+	uint16_t SaveSetTemp = SetTemp;
+	uint8_t selection = 0;
+	bool repeat = true;
+	
+  while (repeat) 
+	{
+    selection = MenuScreen(SetupItems, sizeof(SetupItems), selection);
+    switch (selection) {
+//      case 0:   TipScreen(); repeat = false; break;
+//      case 1:   TempScreen(); break;
+//      case 2:   TimerScreen(); break;
+//      case 3:   PIDenable = MenuScreen(ControlTypeItems, sizeof(ControlTypeItems), PIDenable); break;
+//      case 4:   MainScrType = MenuScreen(MainScreenItems, sizeof(MainScreenItems), MainScrType); break;
+//      case 5:   beepEnable = MenuScreen(BuzzerItems, sizeof(BuzzerItems), beepEnable); break;
+//      case 6:   BodyFlip = MenuScreen(FlipItems, sizeof(FlipItems), BodyFlip); SetFlip(); break;
+//      case 7:   ECReverse = MenuScreen(ECReverseItems, sizeof(ECReverseItems), ECReverse); break;
+//      case 8:   InfoScreen(); break;
+      default:  repeat = false; break;
+    }
+  }
+	handleMoved = true;
+	SetTemp = SaveSetTemp;
+	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);
+}
+
+uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected) 
+{
+  bool isTipScreen;
+	isTipScreen = (Items[0] == "Tip:") ? 1 : 0;
+  uint8_t lastselected = selected;
+  int8_t  arrow = 0;
+  if (selected) arrow = 1;
+  numberOfItems >>= 1;
+  setRotary(0, numberOfItems - 2, 1, selected);
+  bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+
+  do 
+	{
+		selected = 0;
+		arrow = 0;
+    selected = getRotary();
+    arrow = constrain(arrow + selected - lastselected, 0, 2);
+    lastselected = selected;
+    u8g2_FirstPage(&u8g2);
+		do
+		{
+			u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+			u8g2_DrawStr(&u8g2, 0, 0, Items[0]);
+			if (isTipScreen) 
+			{
+				u8g2_DrawStr(&u8g2, 54, 0, TipName[CurrentTip]);
+			}
+			u8g2_DrawStr(&u8g2, 0, 16 * (arrow + 1), ">");
+			for (uint8_t i=0; i<3; i++) 
+			{
+				uint8_t drawnumber = selected + i + 1 - arrow;
+				if (drawnumber < numberOfItems)
+					u8g2_DrawStr(&u8g2, 12, 16 * (i + 1), Items[selected + i + 1 - arrow]);
+			}
+		} while(u8g2_NextPage(&u8g2));
+	if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+		{
+			LL_mDelay(10);
+			lastbutton = false;
+		}
+  } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+
+  beep();
+  return selected;
 }
 
 void beep(void)
@@ -503,6 +593,21 @@ void beep(void)
 		LL_mDelay(32);
 		LL_TIM_DisableCounter(TIM14);
 	}
+}
+
+// sets start values for rotary encoder
+void setRotary(int rmin, int rmax, int rstep, int rvalue)
+{
+  countMin  = rmin << ROTARY_TYPE;
+  countMax  = rmax << ROTARY_TYPE;
+  countStep = ECReverse ? -rstep : rstep;
+  count     = rvalue << ROTARY_TYPE;  
+}
+
+// reads current rotary encoder value
+uint8_t getRotary(void)
+{
+	return (count >> ROTARY_TYPE);
 }
 
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
@@ -542,6 +647,7 @@ void button_callback(Button_t btn, PressEvent event, uint8_t repeat)
 		if(event == DOUBLE_CLICK)
 		{
 			printf("DOUBLE_CLICK\n");
+			SetupScreen();
 		}
 	}
 }
@@ -551,9 +657,25 @@ uint32_t get_sys_tick(void)
 	return TIM16_Tick;
 }
 
-void t1_cb(void* para)
+void t1_1s_cb(void* para)
 {
-	printf("t1_cb\n");
+	//printf("t1_cb at %d\n", get_sys_tick());
+}
+
+void t2_300ms_cb(void* para)
+{
+	u8g2_update_flag = 0;
+	//printf("t2_cb at %d\n", get_sys_tick());
+}
+
+int constrain(int x, int min, int max) {
+    if (x < min) {
+        return min;
+    } else if (x > max) {
+        return max;
+    } else {
+        return x;
+    }
 }
 
 /* USER CODE END 4 */

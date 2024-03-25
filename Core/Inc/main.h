@@ -133,7 +133,7 @@ typedef struct
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
+int constrain(int x, int min, int max);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

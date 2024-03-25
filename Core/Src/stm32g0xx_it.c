@@ -45,6 +45,8 @@
 /* USER CODE BEGIN PV */
 extern uint16_t SetTemp;
 extern uint32_t TIM16_Tick;
+extern volatile int count;
+extern volatile int countStep, countMin, countMax;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -135,32 +137,32 @@ void PendSV_Handler(void)
 void EXTI4_15_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI4_15_IRQn 0 */
-	static uint8_t count = 0;
+	static uint8_t _count = 0;
 	static uint8_t b_flag;
 	uint8_t a_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_14);
 	uint8_t b_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_15);
 	LL_EXTI_DisableIT_0_31(LL_EXTI_LINE_14);
-	if(a_value == RESET && count == 0)
+	if(a_value == RESET && _count == 0)
 	{
 		b_flag = 0;
 		if(b_value)
 			b_flag = 1;
-		count = 1;
+		_count = 1;
 	}
 	
-	if(a_value == SET && count == 1)
+	if(a_value == SET && _count == 1)
 	{
 		if(b_value == RESET && b_flag == 1)
 		{
-			printf("+");
-			SetTemp += TEMP_STEP;
+			//printf("+");
+			count = constrain(count + ((a_value == b_value) ? -countStep : countStep), countMin, countMax);
 		}
-		if(b_value == SET && b_flag == 0)
+		else if(b_value == SET && b_flag == 0)
 		{
-			printf("-");
-			SetTemp -= TEMP_STEP;
+			//printf("-");
+			count = constrain(count + ((a_value == b_value) ? -countStep : countStep), countMin, countMax);
 		}
-		count = 0;
+		_count = 0;
 	}
 	LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_14);
   /* USER CODE END EXTI4_15_IRQn 0 */
