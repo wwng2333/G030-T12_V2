@@ -166,6 +166,9 @@ void calculateTemp(void);
 void SENSORCheck(void);
 void Thermostat(void);
 void SetupScreen(void);
+void InfoScreen(void);
+void TempScreen(void);
+uint16_t InputScreen(const char *Items[]);
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected);
 void beep(void);
 void setRotary(int rmin, int rmax, int rstep, int rvalue);
@@ -523,20 +526,57 @@ void SetupScreen(void)
     selection = MenuScreen(SetupItems, sizeof(SetupItems), selection);
     switch (selection) {
 //      case 0:   TipScreen(); repeat = false; break;
-//      case 1:   TempScreen(); break;
+      case 1:   TempScreen(); break;
 //      case 2:   TimerScreen(); break;
 //      case 3:   PIDenable = MenuScreen(ControlTypeItems, sizeof(ControlTypeItems), PIDenable); break;
 //      case 4:   MainScrType = MenuScreen(MainScreenItems, sizeof(MainScreenItems), MainScrType); break;
 //      case 5:   beepEnable = MenuScreen(BuzzerItems, sizeof(BuzzerItems), beepEnable); break;
 //      case 6:   BodyFlip = MenuScreen(FlipItems, sizeof(FlipItems), BodyFlip); SetFlip(); break;
 //      case 7:   ECReverse = MenuScreen(ECReverseItems, sizeof(ECReverseItems), ECReverse); break;
-//      case 8:   InfoScreen(); break;
+      case 8:   InfoScreen(); break;
       default:  repeat = false; break;
     }
   }
+	//updateEEPROM();
 	handleMoved = true;
 	SetTemp = SaveSetTemp;
 	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);
+}
+
+// information display screen
+void InfoScreen(void)
+{
+  bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+	char sprintf_tmp[16] = {0};
+	
+  do 
+	{
+    Vref_Read();                     // read input voltage
+    float fVcc = (float)Vcc / 1000;     // convert mV in V
+    Vin_Read();                     // read supply voltage
+    float fVin = (float)Vin / 1000;     // convert mv in V
+		Temp_ADC_Read();
+    u8g2_FirstPage(&u8g2);
+      do
+			{
+        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+				sprintf(sprintf_tmp, "Firmware: %s", VERSION);
+        u8g2_DrawStr(&u8g2, 0, 0, sprintf_tmp);
+				sprintf(sprintf_tmp, "Tmp: %dC", temp_adc);
+        u8g2_DrawStr(&u8g2, 0, 16, sprintf_tmp); 
+				sprintf(sprintf_tmp, "Vin: %.1fV", fVin);
+        u8g2_DrawStr(&u8g2, 0, 32, sprintf_tmp);
+				sprintf(sprintf_tmp, "Vcc: %.1fV", fVcc);
+        u8g2_DrawStr(&u8g2, 0, 48, sprintf_tmp);
+      } while(u8g2_NextPage(&u8g2));
+		if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+		{
+			LL_mDelay(10);
+			lastbutton = false;
+		}
+  } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+
+  beep();
 }
 
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected) 
@@ -574,7 +614,7 @@ uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected)
 					u8g2_DrawStr(&u8g2, 12, 16 * (i + 1), Items[selected + i + 1 - arrow]);
 			}
 		} while(u8g2_NextPage(&u8g2));
-	if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+		if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
 		{
 			LL_mDelay(10);
 			lastbutton = false;
@@ -583,6 +623,64 @@ uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected)
 
   beep();
   return selected;
+}
+
+// temperature settings screen
+void TempScreen(void)
+{
+  uint8_t selection = 0;
+  bool repeat = true;  
+  while (repeat) 
+	{
+    selection = MenuScreen(TempItems, sizeof(TempItems), selection);
+    switch (selection) 
+		{
+      case 0:   setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, DefaultTemp);
+                DefaultTemp = InputScreen(DefaultTempItems); break;
+      case 1:   setRotary(20, 200, TEMP_STEP, SleepTemp);
+                SleepTemp = InputScreen(SleepTempItems); break;
+      case 2:   setRotary(10, 100, TEMP_STEP, BoostTemp);
+                BoostTemp = InputScreen(BoostTempItems); break;
+      default:  repeat = false; break;
+    }
+  }
+}
+
+// input value screen
+uint16_t InputScreen(const char *Items[]) 
+{
+  uint16_t value;
+  bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+	char sprintf_tmp[16] = {0};
+	
+  do
+	{
+    value = getRotary();
+    u8g2_FirstPage(&u8g2);
+      do
+			{
+        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+        u8g2_DrawStr(&u8g2, 0, 0, Items[0]);
+        u8g2_DrawStr(&u8g2, 0, 32, ">"); 
+        if (value == 0)  
+        {
+          u8g2_DrawStr(&u8g2, 10, 32, "Deactivated");
+        }
+        else
+        {
+          sprintf(sprintf_tmp, "%c %s", value, Items[1]);
+          u8g2_DrawStr(&u8g2, 10, 32, sprintf_tmp);
+        }            
+      } while(u8g2_NextPage(&u8g2));
+		if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+		{
+			LL_mDelay(10);
+			lastbutton = false;
+		}
+  } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+
+  beep();
+  return value;
 }
 
 void beep(void)
