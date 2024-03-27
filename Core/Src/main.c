@@ -32,9 +32,10 @@
 #include "PID.h"
 #include "math.h"
 #include "Flash.h"
-#include "stm32_button.h"
+//#include "stm32_button.h"
 #include "timer.h"
 #include <string.h>
+#include "mfbd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,13 +64,29 @@ PID_TypeDef TPID;
 
 SystemParamStore SystemParam = {0};
 
-//Button_t button1;
-const Btn_init_attr attr = { .GPIO_PIN_x = LL_GPIO_PIN_0, .GPIOx = GPIOA, .event =
-		{ SINGLE_CLICK }, .event_num = ONE, .active_level = 0 };
-const Btn_init_attr attr2 = { .GPIO_PIN_x = LL_GPIO_PIN_0, .GPIOx = GPIOA, .event =
-		{ DOUBLE_CLICK }, .event_num = ONE, .active_level = 0 };
-Button_t button1, button2;
-		
+MFBD_NBTN_DEFINE(test_nbtn, 0, 10, 0, 100, 0x1301, 0x1300, 0x1302);
+MFBD_NBTN_ARRAYLIST(test_nbtn_list, &test_nbtn);
+uint8_t mfbd_btn_check(mfbd_btn_index_t btn_index);
+void mfbd_btn_callback(mfbd_btn_code_t btn_value);
+
+const mfbd_group_t test_btn_group = {
+    mfbd_btn_check,
+    mfbd_btn_callback,
+    test_nbtn_list,
+};
+
+uint8_t mfbd_btn_check(mfbd_btn_index_t btn_index)
+{
+	if (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) == RESET)
+	{
+		return MFBD_BTN_STATE_DOWN;
+	}
+	else
+	{
+		return MFBD_BTN_STATE_UP;
+	}
+}
+
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
 double consKp=1000, consKi=0, consKd=10;
@@ -282,8 +299,6 @@ int main(void)
 	// read supply voltages in mV
 	Vref_Read();
 	Vin_Read();
-	button1 = button_init(&attr);
-	button2 = button_init(&attr2);
 	
   // read and set current iron temperature
   SetTemp = DefaultTemp;
@@ -301,9 +316,11 @@ int main(void)
   while (1)
   {
 		SetTemp = getRotary();
+		mfbd_group_scan(&test_btn_group);
+		printf("%d->", get_sys_tick());
 		SENSORCheck();
+		printf("%d\n", get_sys_tick());
 		Thermostat();
-		button_ticks();
 		MainScreen(&u8g2);
     /* USER CODE END WHILE */
 
@@ -733,24 +750,6 @@ void Read_System_Parmeter(void)
 //	vFlash_Read_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len);
 }
 
-void button_callback(Button_t btn, PressEvent event, uint8_t repeat) 
-{
-	if (btn == button1) {
-		if (event == SINGLE_CLICK) 
-			{
-			printf("SINGLE_CLICK\n");
-		}
-	}
-	else if (btn == button2) 
-	{
-		if(event == DOUBLE_CLICK)
-		{
-			printf("DOUBLE_CLICK\n");
-			SetupScreen();
-		}
-	}
-}
-
 uint32_t get_sys_tick(void)
 {
 	return TIM16_Tick;
@@ -775,6 +774,26 @@ int constrain(int x, int min, int max) {
     } else {
         return x;
     }
+}
+
+void mfbd_btn_callback(mfbd_btn_code_t btn_value)
+{
+	printf("[mfbd]0x%04x, ", btn_value);
+	switch(btn_value)
+	{
+		case 0x1301	: // short press
+			printf("short\n");
+			break;
+		case 0x1302: // long press
+			printf("long\n");
+			SetupScreen();
+			break;
+		case 0x1300: // key up
+			printf("up\n");
+			break;
+		default:
+			break;
+	}
 }
 
 /* USER CODE END 4 */

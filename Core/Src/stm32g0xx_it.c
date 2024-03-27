@@ -47,6 +47,7 @@ extern uint16_t SetTemp;
 extern uint32_t TIM16_Tick;
 extern volatile int count;
 extern volatile int countStep, countMin, countMax;
+extern volatile bool handleMoved;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -156,11 +157,13 @@ void EXTI4_15_IRQHandler(void)
 		{
 			//printf("+");
 			count = constrain(count + ((a_value == b_value) ? -countStep : countStep), countMin, countMax);
+			handleMoved = true;
 		}
 		else if(b_value == SET && b_flag == 0)
 		{
 			//printf("-");
 			count = constrain(count + ((a_value == b_value) ? -countStep : countStep), countMin, countMax);
+			handleMoved = true;
 		}
 		_count = 0;
 	}
