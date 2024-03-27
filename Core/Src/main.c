@@ -34,6 +34,7 @@
 #include "Flash.h"
 #include "stm32_button.h"
 #include "timer.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -582,7 +583,7 @@ void InfoScreen(void)
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected) 
 {
   bool isTipScreen;
-	isTipScreen = (Items[0] == "Tip:") ? 1 : 0;
+	isTipScreen = (strcmp(Items[0], "Tip:") == 0) ? 1 : 0;
   uint8_t lastselected = selected;
   int8_t  arrow = 0;
   if (selected) arrow = 1;
