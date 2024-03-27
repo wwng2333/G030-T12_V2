@@ -64,29 +64,6 @@ PID_TypeDef TPID;
 
 SystemParamStore SystemParam = {0};
 
-MFBD_NBTN_DEFINE(test_nbtn, 0, 10, 0, 100, 0x1301, 0x1300, 0x1302);
-MFBD_NBTN_ARRAYLIST(test_nbtn_list, &test_nbtn);
-uint8_t mfbd_btn_check(mfbd_btn_index_t btn_index);
-void mfbd_btn_callback(mfbd_btn_code_t btn_value);
-
-const mfbd_group_t test_btn_group = {
-    mfbd_btn_check,
-    mfbd_btn_callback,
-    test_nbtn_list,
-};
-
-uint8_t mfbd_btn_check(mfbd_btn_index_t btn_index)
-{
-	if (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) == RESET)
-	{
-		return MFBD_BTN_STATE_DOWN;
-	}
-	else
-	{
-		return MFBD_BTN_STATE_UP;
-	}
-}
-
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
 double consKp=1000, consKi=0, consKd=10;
@@ -181,6 +158,7 @@ void Vref_Read(void);
 void Temp_ADC_Read(void);
 uint16_t denoiseAnalog(uint32_t adc_ch);
 void calculateTemp(void);
+void ROTARYCheck(void);
 void SENSORCheck(void);
 void Thermostat(void);
 void SetupScreen(void);
@@ -315,8 +293,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		SetTemp = getRotary();
-		mfbd_group_scan(&test_btn_group);
+		ROTARYCheck();
 		printf("%d->", get_sys_tick());
 		SENSORCheck();
 		printf("%d\n", get_sys_tick());
@@ -406,6 +383,42 @@ void MainScreen(u8g2_t *u8g2)
 		sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
     u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
   } while (u8g2_NextPage(u8g2));
+}
+
+void ROTARYCheck(void)
+{
+	SetTemp = getRotary();
+	
+	// check rotary encoder switch
+	uint8_t c = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0);
+	if ( !c && c0 ) 
+	{
+		beep();
+		buttonmillis = get_sys_tick();
+		while((!LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) && ((get_sys_tick() - buttonmillis) < 500));
+		if ((get_sys_tick() - buttonmillis) >= 500) 
+		{
+			SetupScreen();
+		}
+		else
+		{
+			inBoostMode = !inBoostMode;
+			if (inBoostMode) boostmillis = get_sys_tick();
+			handleMoved = true;
+		}
+	}
+	c0 = c;
+	
+	// check timer when in boost mode
+  if (inBoostMode && timeOfBoost) 
+	{
+    goneSeconds = (get_sys_tick() - boostmillis) / 1000;
+    if (goneSeconds >= timeOfBoost) {
+      inBoostMode = false;              // stop boost mode
+      beep();                           // beep if boost mode is over
+      beepIfWorky = true;               // beep again when working temperature is reached
+    }
+  }
 }
 
 void Vin_Read(void) //LL_ADC_CHANNEL_11
@@ -767,32 +780,17 @@ void t2_300ms_cb(void* para)
 }
 
 int constrain(int x, int min, int max) {
-    if (x < min) {
-        return min;
-    } else if (x > max) {
-        return max;
-    } else {
-        return x;
-    }
-}
-
-void mfbd_btn_callback(mfbd_btn_code_t btn_value)
-{
-	printf("[mfbd]0x%04x, ", btn_value);
-	switch(btn_value)
+	if (x < min) 
 	{
-		case 0x1301	: // short press
-			printf("short\n");
-			break;
-		case 0x1302: // long press
-			printf("long\n");
-			SetupScreen();
-			break;
-		case 0x1300: // key up
-			printf("up\n");
-			break;
-		default:
-			break;
+		return min;
+	} 
+	else if (x > max) 
+	{
+		return max;
+	} 
+	else 
+	{
+		return x;
 	}
 }
 
