@@ -370,18 +370,43 @@ void MainScreen(u8g2_t *u8g2)
 		else if(isWorky) strcpy(sprintf_tmp, "WORKY");
 		else if(Output < 180) strcpy(sprintf_tmp, " HEAT");
 		else strcpy(sprintf_tmp, " HOLD");
-    u8g2_DrawStr(u8g2, 83, 10, sprintf_tmp);
-		PWM_Output = Output / 1999 * 100;
-    sprintf(sprintf_tmp, " %d%%", PWM_Output);
-    u8g2_DrawStr(u8g2, 85, 32, sprintf_tmp);
+		u8g2_DrawStr(u8g2, 83, 10, sprintf_tmp);
 		
-    u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
-		sprintf(sprintf_tmp, "%.1fV", (float)Vin*0.001);
-    u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
+		if(MainScrType)
+		{
+			PWM_Output = Output / 1999 * 100;
+			sprintf(sprintf_tmp, " %d%%", PWM_Output);
+			u8g2_DrawStr(u8g2, 85, 32, sprintf_tmp);
+			
+			u8g2_DrawStr(u8g2, 0, 62, TipName[CurrentTip]);
+			sprintf(sprintf_tmp, "%.1fV", (float)Vin*0.001);
+			u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
-    u8g2_SetFont(u8g2, u8g2_font_freedoomr25_tn);
-		sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
-    u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
+			u8g2_SetFont(u8g2, u8g2_font_freedoomr25_tn);
+			
+			if (ShowTemp > 500)
+			{
+				u8g2_DrawStr(u8g2, 37, 45, "000");
+			}
+			else
+			{
+				sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
+				u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
+			}
+		}
+		else
+		{
+			u8g2_SetFont(u8g2, u8g2_font_fub42_tn);
+			if (ShowTemp > 500)
+			{
+				u8g2_DrawStr(u8g2, 15, 60, "000");
+			}
+			else
+			{
+				sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
+				u8g2_DrawStr(u8g2, 15, 60, sprintf_tmp);
+			}
+		}
   } while (u8g2_NextPage(u8g2));
 }
 
@@ -609,11 +634,11 @@ void SetupScreen(void)
 //      case 0:   TipScreen(); repeat = false; break;
       case 1:   TempScreen(); break;
 //      case 2:   TimerScreen(); break;
-//      case 3:   PIDenable = MenuScreen(ControlTypeItems, sizeof(ControlTypeItems), PIDenable); break;
-//      case 4:   MainScrType = MenuScreen(MainScreenItems, sizeof(MainScreenItems), MainScrType); break;
-//      case 5:   beepEnable = MenuScreen(BuzzerItems, sizeof(BuzzerItems), beepEnable); break;
+      case 3:   PIDenable = MenuScreen(ControlTypeItems, 3, PIDenable); break;
+      case 4:   MainScrType = MenuScreen(MainScreenItems, 3, MainScrType); break;
+      case 5:   beepEnable = MenuScreen(BuzzerItems, 3, beepEnable); break;
 //      case 6:   BodyFlip = MenuScreen(FlipItems, sizeof(FlipItems), BodyFlip); SetFlip(); break;
-//      case 7:   ECReverse = MenuScreen(ECReverseItems, sizeof(ECReverseItems), ECReverse); break;
+      case 7:   ECReverse = MenuScreen(ECReverseItems, 3, ECReverse); break;
       case 8:   InfoScreen(); break;
       default:  repeat = false; break;
     }
