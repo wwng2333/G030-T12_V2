@@ -73,7 +73,7 @@ extern "C" {
 #define SSD1306                 // SSD1306 or SH1106
 
 // Type of rotary encoder
-#define ROTARY_TYPE   1         // 0: 2 increments/step; 1: 4 increments/step (default)
+#define ROTARY_TYPE   0         // 0: 2 increments/step; 1: 4 increments/step (default)
 
 // Pins
 #define SENSOR_PIN    A0        // tip temperature sense
@@ -111,7 +111,7 @@ extern "C" {
 #define TIME2SETTLE   950       // time in microseconds to allow OpAmp output to settle
 #define SMOOTHIE      0.05      // OpAmp output smooth factor (1=no smoothing; 0.05 default)
 #define PID_ENABLE    true     // enable PID control
-#define BEEP_ENABLE   true      // enable/disable buzzer
+#define BEEP_ENABLE   false      // enable/disable buzzer
 #define BODYFLIP      false     // enable/disable screen flip
 #define ECREVERSE     false     // enable/disable rotary encoder reverse
 #define MAINSCREEN    0         // type of main screen (0: big numbers; 1: more infos)

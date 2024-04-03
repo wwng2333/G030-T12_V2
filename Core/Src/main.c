@@ -66,7 +66,7 @@ SystemParamStore SystemParam = {0};
 
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
-double consKp=1000, consKi=0, consKd=10;
+double consKp=66, consKi=0.5, consKd=1;
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -168,7 +168,7 @@ uint16_t InputScreen(const char *Items[]);
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected);
 void beep(void);
 void setRotary(int rmin, int rmax, int rstep, int rvalue);
-uint8_t getRotary(void);
+uint16_t getRotary(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
 void Read_System_Parmeter(void);
 uint32_t get_sys_tick(void);
@@ -294,9 +294,9 @@ int main(void)
   while (1)
   {
 		ROTARYCheck();
-		printf("%d->", get_sys_tick());
+		//printf("%d->", get_sys_tick());
 		SENSORCheck();
-		printf("%d\n", get_sys_tick());
+		//printf("%d\n", get_sys_tick());
 		Thermostat();
 		MainScreen(&u8g2);
     /* USER CODE END WHILE */
@@ -376,7 +376,7 @@ void MainScreen(u8g2_t *u8g2)
     u8g2_DrawStr(u8g2, 85, 32, sprintf_tmp);
 		
     u8g2_DrawStr(u8g2, 0, 62, "T12-KU");
-		sprintf(sprintf_tmp, "%.1fV", (Vin*0.001*((47 + 4.7) / 4.7)));
+		sprintf(sprintf_tmp, "%.1fV", (float)Vin*0.001);
     u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
 
     u8g2_SetFont(u8g2, u8g2_font_freedoomr25_tn);
@@ -388,7 +388,7 @@ void MainScreen(u8g2_t *u8g2)
 void ROTARYCheck(void)
 {
 	SetTemp = getRotary();
-	
+		
 	// check rotary encoder switch
 	uint8_t c = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0);
 	if ( !c && c0 ) 
@@ -426,7 +426,7 @@ void Vin_Read(void) //LL_ADC_CHANNEL_11
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_11);
 	//printf("vin read %d, ", result);
-	Vin = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
+	Vin = (__LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B)*((47 + 4.7) / 4.7));
 	//printf("%hu mV\n", Vin);
 }
 
@@ -434,7 +434,7 @@ void RawTemp_Read(void)
 {
 	uint16_t result;
 	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
-	LL_mDelay(1); // wait for voltage to settle
+	LL_mDelay(2); // wait for voltage to settle
 	
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
 	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
@@ -486,26 +486,65 @@ uint16_t denoiseAnalog(uint32_t adc_ch)
 void SENSORCheck(void)
 {
 	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
-	LL_mDelay(10); // wait for voltage to settle
+	LL_mDelay(1); // wait for voltage to settle
 	
-	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);
-	Vin_Read();
+	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);  // read ADC value for temperature
+	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_10); // check handle vibration switch
+	if (d != d0) // set flag if handle was moved
+	{
+		handleMoved = true; 
+		d0 = d;
+	} 
+	if (! SensorCounter--) // get Vin every now and then
+	{
+		Vin_Read();
+	}
+
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);			// turn on again heater
+	
   RawTemp += (temp - RawTemp) * SMOOTHIE;     // stabilize ADC temperature reading
   calculateTemp();                            // calculate real temperature value
 	
   // stabilize displayed temperature when around setpoint
-  if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5)) ShowTemp = CurrentTemp;
-  if (fabs(ShowTemp - Setpoint) <= 1) ShowTemp = Setpoint;
+  if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5))
+	{
+		ShowTemp = CurrentTemp;
+	}
+  if (fabs(ShowTemp - Setpoint) <= 1)
+	{
+		ShowTemp = Setpoint;
+	}
 	
 	  // set state variable if temperature is in working range; beep if working temperature was just reached
   gap = fabs(SetTemp - CurrentTemp);
-  if (gap < 5) {
+  if (gap < 5) 
+	{
     if (!isWorky && beepIfWorky) beep();
     isWorky = true;
     beepIfWorky = false;
   }
-  else isWorky = false;
+  else 
+	{
+		isWorky = false;
+	}
+	
+  // checks if tip is present or currently inserted
+  if (ShowTemp > 500) // tip removed ?
+	{
+		TipIsPresent = false;
+	}		
+  if (!TipIsPresent && (ShowTemp < 500)) 			// new tip inserted ?
+	{
+    LL_TIM_OC_SetCompareCH1(TIM3, 0);     // shut off heater
+    beep();                                   // beep for info
+    TipIsPresent = true;                      // tip is present now
+    //ChangeTipScreen();                        // show tip selection screen
+    //updateEEPROM();                           // update setting in EEPROM
+    handleMoved = true;                       // reset all timers
+    RawTemp = denoiseAnalog(LL_ADC_CHANNEL_10);     // restart temp smooth algorithm
+    c0 = 0;                                 // switch must be released
+    setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);  // reset rotary encoder
+  }
 }
 
 // calculates real temperature value according to ADC reading and calibration values
@@ -516,6 +555,7 @@ void calculateTemp(void)
   else CurrentTemp = map(RawTemp, 1696, 2181, CalTemp[CurrentTip][1], CalTemp[CurrentTip][2]);
 }
 
+// controls the heater
 void Thermostat(void)
 {
   // define Setpoint acoording to current working mode
@@ -537,9 +577,18 @@ void Thermostat(void)
 			PID_SetTunings(&TPID, aggKp, aggKi, aggKd);
 		}
     PID_Compute(&TPID);
-  } else {
+  } 
+	else 
+	{
     // turn on heater if current temperature is below setpoint
-    if ((CurrentTemp + 0.5) < Setpoint) Output = 0; else Output = 1999;
+    if ((CurrentTemp + 0.5) < Setpoint)
+		{
+			Output = 0;
+		}
+		else
+		{
+			Output = 1999;
+		}
   }
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);
 }
@@ -554,8 +603,9 @@ void SetupScreen(void)
 	
   while (repeat) 
 	{
-    selection = MenuScreen(SetupItems, sizeof(SetupItems), selection);
-    switch (selection) {
+    selection = MenuScreen(SetupItems, 11, selection);
+    switch (selection) 
+		{
 //      case 0:   TipScreen(); repeat = false; break;
       case 1:   TempScreen(); break;
 //      case 2:   TimerScreen(); break;
@@ -592,13 +642,14 @@ void InfoScreen(void)
 			{
         u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
 				sprintf(sprintf_tmp, "Firmware: %s", VERSION);
-        u8g2_DrawStr(&u8g2, 0, 0, sprintf_tmp);
+        u8g2_DrawStr(&u8g2, 0, 10, sprintf_tmp);
 				sprintf(sprintf_tmp, "Tmp: %dC", temp_adc);
-        u8g2_DrawStr(&u8g2, 0, 16, sprintf_tmp); 
+        u8g2_DrawStr(&u8g2, 0, 26, sprintf_tmp); 
 				sprintf(sprintf_tmp, "Vin: %.1fV", fVin);
-        u8g2_DrawStr(&u8g2, 0, 32, sprintf_tmp);
+        u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp);
 				sprintf(sprintf_tmp, "Vcc: %.1fV", fVcc);
-        u8g2_DrawStr(&u8g2, 0, 48, sprintf_tmp);
+        u8g2_DrawStr(&u8g2, 0, 58, sprintf_tmp);
+				LL_mDelay(50);
       } while(u8g2_NextPage(&u8g2));
 		if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
 		{
@@ -615,9 +666,12 @@ uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected)
   bool isTipScreen;
 	isTipScreen = (strcmp(Items[0], "Tip:") == 0) ? 1 : 0;
   uint8_t lastselected = selected;
-  int8_t  arrow = 0;
-  if (selected) arrow = 1;
-  numberOfItems >>= 1;
+  int8_t arrow = 0;
+  if (selected)
+	{
+		arrow = 1;
+	}
+  //numberOfItems >>= 1;
   setRotary(0, numberOfItems - 2, 1, selected);
   bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
 
@@ -632,17 +686,19 @@ uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected)
 		do
 		{
 			u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
-			u8g2_DrawStr(&u8g2, 0, 0, Items[0]);
+			u8g2_DrawStr(&u8g2, 0, 10, Items[0]);
 			if (isTipScreen) 
 			{
 				u8g2_DrawStr(&u8g2, 54, 0, TipName[CurrentTip]);
 			}
-			u8g2_DrawStr(&u8g2, 0, 16 * (arrow + 1), ">");
+			u8g2_DrawStr(&u8g2, 0, 10+16 * (arrow + 1), ">");
 			for (uint8_t i=0; i<3; i++) 
 			{
 				uint8_t drawnumber = selected + i + 1 - arrow;
 				if (drawnumber < numberOfItems)
-					u8g2_DrawStr(&u8g2, 12, 16 * (i + 1), Items[selected + i + 1 - arrow]);
+				{
+					u8g2_DrawStr(&u8g2, 12, 10+16 * (i + 1), Items[selected + i + 1 - arrow]);
+				}
 			}
 		} while(u8g2_NextPage(&u8g2));
 		if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
@@ -663,16 +719,24 @@ void TempScreen(void)
   bool repeat = true;  
   while (repeat) 
 	{
-    selection = MenuScreen(TempItems, sizeof(TempItems), selection);
+    selection = MenuScreen(TempItems, 5, selection);
     switch (selection) 
 		{
-      case 0:   setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, DefaultTemp);
-                DefaultTemp = InputScreen(DefaultTempItems); break;
-      case 1:   setRotary(20, 200, TEMP_STEP, SleepTemp);
-                SleepTemp = InputScreen(SleepTempItems); break;
-      case 2:   setRotary(10, 100, TEMP_STEP, BoostTemp);
-                BoostTemp = InputScreen(BoostTempItems); break;
-      default:  repeat = false; break;
+      case 0:
+				setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, DefaultTemp);
+				DefaultTemp = InputScreen(DefaultTempItems);
+				break;
+      case 1:
+				setRotary(20, 200, TEMP_STEP, SleepTemp);
+				SleepTemp = InputScreen(SleepTempItems);
+				break;
+      case 2:
+				setRotary(10, 100, TEMP_STEP, BoostTemp);
+				BoostTemp = InputScreen(BoostTempItems); 
+				break;
+      default:
+				repeat = false; 
+				break;
     }
   }
 }
@@ -680,7 +744,7 @@ void TempScreen(void)
 // input value screen
 uint16_t InputScreen(const char *Items[]) 
 {
-  uint16_t value;
+  uint16_t value = 0;
   bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
 	char sprintf_tmp[16] = {0};
 	
@@ -691,16 +755,16 @@ uint16_t InputScreen(const char *Items[])
       do
 			{
         u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
-        u8g2_DrawStr(&u8g2, 0, 0, Items[0]);
-        u8g2_DrawStr(&u8g2, 0, 32, ">"); 
-        if (value == 0)  
+        u8g2_DrawStr(&u8g2, 0, 10, Items[0]);
+        u8g2_DrawStr(&u8g2, 0, 42, ">"); 
+        if (value == 0)
         {
-          u8g2_DrawStr(&u8g2, 10, 32, "Deactivated");
+          u8g2_DrawStr(&u8g2, 10, 42, "Deactivated");
         }
         else
         {
-          sprintf(sprintf_tmp, "%c %s", value, Items[1]);
-          u8g2_DrawStr(&u8g2, 10, 32, sprintf_tmp);
+          sprintf(sprintf_tmp, "%d %s", value, Items[1]);
+          u8g2_DrawStr(&u8g2, 10, 42, sprintf_tmp);
         }            
       } while(u8g2_NextPage(&u8g2));
 		if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
@@ -734,8 +798,9 @@ void setRotary(int rmin, int rmax, int rstep, int rvalue)
 }
 
 // reads current rotary encoder value
-uint8_t getRotary(void)
+uint16_t getRotary(void)
 {
+	printf("ec11:%d\n", count);
 	return (count >> ROTARY_TYPE);
 }
 
