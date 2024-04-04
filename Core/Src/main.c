@@ -164,6 +164,7 @@ void Thermostat(void);
 void TimerScreen(void);
 void SetupScreen(void);
 void TipScreen(void);
+void InputNameScreen(void);
 void InfoScreen(void);
 void TempScreen(void);
 uint16_t InputScreen(const char *Items[]);
@@ -668,7 +669,7 @@ void TipScreen(void)
 				//CalibrationScreen();
 				break;
       case 2:
-				//InputNameScreen();
+				InputNameScreen();
 				break;
       case 3:
 				//DeleteTipScreen();
@@ -681,6 +682,56 @@ void TipScreen(void)
 				break;
     }
   }
+}
+
+// input tip name screen
+void InputNameScreen(void) 
+{
+  uint8_t value, i;
+	char sprintf_tmp[6] = {0};
+	
+  for (uint8_t digit = 0; digit < (TIPNAMELENGTH - 1); digit++) 
+	{
+		bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+    setRotary(31, 96, 1, 65);
+    do
+		{
+      value = getRotary();
+      if (value == 31)
+			{
+				value = 95;
+				setRotary(31, 96, 1, 95);
+			}
+      else if (value == 96) 
+			{
+				value = 32; 
+				setRotary(31, 96, 1, 32);
+			}
+      u8g2_FirstPage(&u8g2);
+			do 
+			{
+				u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+				u8g2_DrawStr(&u8g2, 0, 10, "Enter Tip Name");
+				u8g2_DrawStr(&u8g2, 9 * digit, 58, "^");
+				for (uint8_t i = 0; i < digit; i++) 
+				{
+					sprintf_tmp[i] = TipName[CurrentTip][i];
+				}
+				sprintf_tmp[digit] = value;
+				u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp);
+			} while(u8g2_NextPage(&u8g2));
+			if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+			{
+				LL_mDelay(10);
+				lastbutton = false;
+			}
+    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+    TipName[CurrentTip][digit] = value;
+    beep();
+		LL_mDelay(10);
+  }
+  TipName[CurrentTip][TIPNAMELENGTH - 1] = 0;
+  return;
 }
 
 // information display screen
