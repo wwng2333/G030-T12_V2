@@ -736,43 +736,64 @@ void ChangeTipScreen(void)
 // temperature calibration screen
 void CalibrationScreen(void) {
   uint16_t CalTempNew[4]; 
-  for (uint8_t CalStep = 0; CalStep < 3; CalStep++) {
+	char sprintf_tmp[16] = {0};
+	
+  for (uint8_t CalStep = 0; CalStep < 3; CalStep++) 
+	{
     SetTemp = CalTemp[CurrentTip][CalStep];
     setRotary(100, 500, 1, SetTemp);
     beepIfWorky = true;
-    bool    lastbutton = (!digitalRead(BUTTON_PIN));
+    bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
 
-    do {
+    do 
+		{
       SENSORCheck();      // reads temperature and vibration switch of the iron
       Thermostat();       // heater control
       
-      u8g.firstPage();
-      do {
-        u8g.setFont(u8g_font_9x15);
-        u8g.setFontPosTop();
-        u8g.drawStr( 0, 0,  F("Calibration"));
-        u8g.setPrintPos(0, 16); u8g.print(F("Step: ")); u8g.print(CalStep + 1); u8g.print(" of 3");
-        if (isWorky) {
-          u8g.setPrintPos(0, 32); u8g.print(F("Set measured"));
-          u8g.setPrintPos(0, 48); u8g.print(F("temp: ")); u8g.print(getRotary());
-        } else {
-          u8g.setPrintPos(0, 32); u8g.print(F("ADC:  ")); u8g.print(uint16_t(RawTemp));
-          u8g.setPrintPos(0, 48); u8g.print(F("Please wait..."));
+      u8g2_FirstPage(&u8g2);
+      do 
+			{
+        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+        u8g2_DrawStr(&u8g2, 0, 10, "Calibration");
+				sprintf(sprintf_tmp, "Step: %d of 3", CalStep + 1);
+				u8g2_DrawStr(&u8g2, 0, 26, sprintf_tmp); 
+        if (isWorky)
+				{
+					u8g2_DrawStr(&u8g2, 0, 42, "Set measured");
+					sprintf(sprintf_tmp, "temp: %d", getRotary());
+					u8g2_DrawStr(&u8g2, 0, 58, sprintf_tmp); 
         }
-      } while(u8g.nextPage());
-    if (lastbutton && digitalRead(BUTTON_PIN)) {delay(10); lastbutton = false;}
-    } while (digitalRead(BUTTON_PIN) || lastbutton);
+				else 
+				{
+					sprintf(sprintf_tmp, "ADC: %d", (uint16_t)RawTemp);
+					u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp); 
+					u8g2_DrawStr(&u8g2, 0, 58, "Please wait...");
+        }
+      } while(u8g2_NextPage(&u8g2));
+			if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+			{
+				LL_mDelay(10);
+				lastbutton = false;
+			}
+    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
 
-  CalTempNew[CalStep] = getRotary();
-  beep(); delay (10);
+		CalTempNew[CalStep] = getRotary();
+		beep(); 
+		LL_mDelay(10);
   }
 
-  analogWrite(CONTROL_PIN, HEATER_OFF);       // shut off heater
-  delayMicroseconds(TIME2SETTLE);             // wait for voltage to settle
-  CalTempNew[3] = getChipTemp();              // read chip temperature
-  if ((CalTempNew[0] + 10 < CalTempNew[1]) && (CalTempNew[1] + 10 < CalTempNew[2])) {
-    if (MenuScreen(StoreItems, sizeof(StoreItems), 0)) {
-      for (uint8_t i = 0; i < 4; i++) CalTemp[CurrentTip][i] = CalTempNew[i];
+	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
+  LL_mDelay(2); // wait for voltage to settle
+  CalTempNew[3] = TMP75_ReadTemp(); // read temperature from TMP75
+	
+  if ((CalTempNew[0] + 10 < CalTempNew[1]) && (CalTempNew[1] + 10 < CalTempNew[2])) 
+	{
+    if (MenuScreen(StoreItems, 3, 0))
+		{
+      for (uint8_t i = 0; i < 4; i++) 
+			{
+				CalTemp[CurrentTip][i] = CalTempNew[i];
+			}
     }
   }
 }
