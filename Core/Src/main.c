@@ -165,6 +165,7 @@ void TimerScreen(void);
 void SetupScreen(void);
 void TipScreen(void);
 void InputNameScreen(void);
+void SetFlip(void);
 void AddTipScreen(void);
 void DeleteTipScreen(void);
 void ChangeTipScreen(void);
@@ -281,6 +282,9 @@ int main(void)
 	memset(&SystemParam, 0, sizeof(SystemParam));
 	memcpy(&SystemParam, (const void*)SYSTEM_ARG_STORE_START_ADDR, sizeof(SystemParam));
 	//Read_System_Parmeter();
+	
+	// set screen flip
+	SetFlip();
 	
 	// read supply voltages in mV
 	Vref_Read();
@@ -626,6 +630,12 @@ void Thermostat(void)
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);
 }
 
+// check state and flip screen
+void SetFlip(void) 
+{
+	u8g2_SetFlipMode(&u8g2, BodyFlip);
+}
+
 void SetupScreen(void)
 {
 	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
@@ -645,7 +655,7 @@ void SetupScreen(void)
       case 3:   PIDenable = MenuScreen(ControlTypeItems, 3, PIDenable); break;
       case 4:   MainScrType = MenuScreen(MainScreenItems, 3, MainScrType); break;
       case 5:   beepEnable = MenuScreen(BuzzerItems, 3, beepEnable); break;
-//      case 6:   BodyFlip = MenuScreen(FlipItems, sizeof(FlipItems), BodyFlip); SetFlip(); break;
+      case 6:   BodyFlip = MenuScreen(FlipItems, 3, BodyFlip); SetFlip(); break;
       case 7:   ECReverse = MenuScreen(ECReverseItems, 3, ECReverse); break;
       case 8:   InfoScreen(); break;
       default:  repeat = false; break;
@@ -734,7 +744,8 @@ void ChangeTipScreen(void)
 }
 
 // temperature calibration screen
-void CalibrationScreen(void) {
+void CalibrationScreen(void) 
+{
   uint16_t CalTempNew[4]; 
 	char sprintf_tmp[16] = {0};
 	
