@@ -161,6 +161,7 @@ void calculateTemp(void);
 void ROTARYCheck(void);
 void SENSORCheck(void);
 void Thermostat(void);
+void TimerScreen(void);
 void SetupScreen(void);
 void InfoScreen(void);
 void TempScreen(void);
@@ -451,7 +452,7 @@ void Vin_Read(void) //LL_ADC_CHANNEL_11
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_11);
 	//printf("vin read %d, ", result);
-	Vin = (__LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B)*((47 + 4.7) / 4.7));
+	Vin = (__LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B)*11); // ((47 + 4.7) / 4.7) = 11
 	//printf("%hu mV\n", Vin);
 }
 
@@ -463,7 +464,7 @@ void RawTemp_Read(void)
 	
 	result = denoiseAnalog(LL_ADC_CHANNEL_10);
 	RawTemp = __LL_ADC_CALC_DATA_TO_VOLTAGE(Vcc, result, LL_ADC_RESOLUTION_12B);
-	printf("t12:%hu mV\n", (uint16_t)RawTemp);
+	//printf("t12:%hu mV\n", (uint16_t)RawTemp);
 	LL_TIM_OC_SetCompareCH1(TIM3, Output);
 }
 
@@ -471,19 +472,19 @@ void Vref_Read(void) //LL_ADC_CHANNEL_VREFINT
 {
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_VREFINT);
-	printf("vref read %d, ", result);
+	//printf("vref read %d, ", result);
 	Vcc = __LL_ADC_CALC_VREFANALOG_VOLTAGE(result, LL_ADC_RESOLUTION_12B);
-	printf("%hu mV\n", Vcc);
+	//printf("%hu mV\n", Vcc);
 }
 
 void Temp_ADC_Read(void)
 {
 	uint16_t result;
 	result = denoiseAnalog(LL_ADC_CHANNEL_TEMPSENSOR);
-	printf("temp read %d, ", result);
+	//printf("temp read %d, ", result);
 	
 	temp_adc = __LL_ADC_CALC_TEMPERATURE(Vcc, result, LL_ADC_RESOLUTION_12B);
-	printf("%hu C\n", temp_adc);
+	//printf("%hu C\n", temp_adc);
 }
 
 // average several ADC readings in sleep mode to denoise
@@ -633,7 +634,7 @@ void SetupScreen(void)
 		{
 //      case 0:   TipScreen(); repeat = false; break;
       case 1:   TempScreen(); break;
-//      case 2:   TimerScreen(); break;
+      case 2:   TimerScreen(); break;
       case 3:   PIDenable = MenuScreen(ControlTypeItems, 3, PIDenable); break;
       case 4:   MainScrType = MenuScreen(MainScreenItems, 3, MainScrType); break;
       case 5:   beepEnable = MenuScreen(BuzzerItems, 3, beepEnable); break;
@@ -684,6 +685,35 @@ void InfoScreen(void)
   } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
 
   beep();
+}
+
+// timer settings screen
+void TimerScreen(void)
+{
+  uint8_t selection = 0;
+  bool repeat = true;  
+  while (repeat)
+	{
+    selection = MenuScreen(TimerItems, 5, selection);
+    switch (selection) 
+		{
+      case 0:
+				setRotary(0, 30, 1, time2sleep);
+				time2sleep = InputScreen(SleepTimerItems);
+				break;
+      case 1:
+				setRotary(0, 60, 5, time2off);
+				time2off = InputScreen(OffTimerItems); 
+				break;
+      case 2:
+				setRotary(0, 180, 10, timeOfBoost);
+				timeOfBoost = InputScreen(BoostTimerItems);
+				break;
+      default:  
+				repeat = false; 
+				break;
+    }
+  }
 }
 
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected) 
@@ -825,7 +855,7 @@ void setRotary(int rmin, int rmax, int rstep, int rvalue)
 // reads current rotary encoder value
 uint16_t getRotary(void)
 {
-	printf("ec11:%d\n", count);
+	//printf("ec11:%d\n", count);
 	return (count >> ROTARY_TYPE);
 }
 
