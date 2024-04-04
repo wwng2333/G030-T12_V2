@@ -166,6 +166,7 @@ void SetupScreen(void);
 void TipScreen(void);
 void InputNameScreen(void);
 void AddTipScreen(void);
+void DeleteTipScreen(void);
 void MessageScreen(const char *Items[], uint8_t numberOfItems);
 void InfoScreen(void);
 void TempScreen(void);
@@ -674,7 +675,7 @@ void TipScreen(void)
 				InputNameScreen();
 				break;
       case 3:
-				//DeleteTipScreen();
+				DeleteTipScreen();
 				break;
       case 4:
 				AddTipScreen();
@@ -686,55 +687,51 @@ void TipScreen(void)
   }
 }
 
-// input tip name screen
-void InputNameScreen(void) 
+// change tip screen
+void ChangeTipScreen() 
 {
-  uint8_t value, i;
-	char sprintf_tmp[6] = {0};
-	
-  for (uint8_t digit = 0; digit < (TIPNAMELENGTH - 1); digit++) 
-	{
-		bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
-    setRotary(31, 96, 1, 65);
-    do
-		{
-      value = getRotary();
-      if (value == 31)
-			{
-				value = 95;
-				setRotary(31, 96, 1, 95);
-			}
-      else if (value == 96) 
-			{
-				value = 32; 
-				setRotary(31, 96, 1, 32);
-			}
-      u8g2_FirstPage(&u8g2);
-			do 
-			{
-				u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
-				u8g2_DrawStr(&u8g2, 0, 10, "Enter Tip Name");
-				u8g2_DrawStr(&u8g2, 9 * digit, 58, "^");
-				for (uint8_t i = 0; i < digit; i++) 
-				{
-					sprintf_tmp[i] = TipName[CurrentTip][i];
-				}
-				sprintf_tmp[digit] = value;
-				u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp);
-			} while(u8g2_NextPage(&u8g2));
-			if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
-			{
-				LL_mDelay(10);
-				lastbutton = false;
-			}
-    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
-    TipName[CurrentTip][digit] = value;
-    beep();
-		LL_mDelay(10);
+  uint8_t selected = CurrentTip;
+  uint8_t lastselected = selected;
+  int8_t  arrow = 0;
+  if (selected)
+  {
+    arrow = 1;
   }
-  TipName[CurrentTip][TIPNAMELENGTH - 1] = 0;
-  return;
+  setRotary(0, NumberOfTips - 1, 1, selected);
+  bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+
+  do 
+  {
+    selected = getRotary();
+    arrow = constrain(arrow + selected - lastselected, 0, 2);
+    lastselected = selected;
+    u8g2_FirstPage(&u8g2);
+    do
+    {
+        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+        u8g2_DrawStr(&u8g2, 0, 10, "Select Tip");
+        u8g2_DrawStr(&u8g2, 0, 16 * (arrow + 1), ">");
+        for (uint8_t i=0; i<3; i++)
+        {
+          uint8_t drawnumber = selected + i - arrow;
+          if (drawnumber < NumberOfTips)
+          {
+            u8g2_DrawStr(&u8g2, 12, 16 * (i + 1), TipName[selected + i - arrow]);
+          }
+        }
+      } while(u8g2_NextPage(&u8g2));
+    if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0))
+    {
+      LL_mDelay(10); 
+      lastbutton = false;
+    }
+  } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+
+  beep();
+  CurrentTip = selected;
 }
+
+
 
 // add new tip screen
 void AddTipScreen() 
@@ -752,6 +749,37 @@ void AddTipScreen()
 	{
 		MessageScreen(MaxTipMessage, 4);
 	}
+}	
+
+// delete tip screen
+void DeleteTipScreen(void)
+{
+  if (NumberOfTips == 1)
+	{
+		MessageScreen(DeleteMessage, 4);
+	}
+  else if (MenuScreen(SureItems, 3, 0)) 
+	{
+    if (CurrentTip == (NumberOfTips - 1)) 
+		{
+			CurrentTip--;
+		}
+    else 
+		{
+      for (uint8_t i = CurrentTip; i < (NumberOfTips - 1); i++) 
+			{
+        for (uint8_t j = 0; j < TIPNAMELENGTH; j++)
+				{
+					TipName[i][j] = TipName[i+1][j];
+				}
+        for (uint8_t j = 0; j < 4; j++)
+				{
+					CalTemp[i][j] = CalTemp[i+1][j];
+				}
+      }
+    }
+    NumberOfTips--;
+  }
 }
 
 void MessageScreen(const char *Items[], uint8_t numberOfItems)
@@ -763,7 +791,7 @@ void MessageScreen(const char *Items[], uint8_t numberOfItems)
     u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
     for (uint8_t i = 0; i < numberOfItems; i++) 
 		{
-			u8g2_DrawStr(&u8g2, 0, i * 16, Items[i]);
+			u8g2_DrawStr(&u8g2, 0, 10+i * 16, Items[i]);
 		}
   } while(u8g2_NextPage(&u8g2));
   do 
