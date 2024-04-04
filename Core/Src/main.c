@@ -167,6 +167,8 @@ void TipScreen(void);
 void InputNameScreen(void);
 void AddTipScreen(void);
 void DeleteTipScreen(void);
+void ChangeTipScreen(void);
+void CalibrationScreen(void);
 void MessageScreen(const char *Items[], uint8_t numberOfItems);
 void InfoScreen(void);
 void TempScreen(void);
@@ -569,7 +571,7 @@ void SENSORCheck(void)
     LL_TIM_OC_SetCompareCH1(TIM3, 0);     // shut off heater
     beep();                                   // beep for info
     TipIsPresent = true;                      // tip is present now
-    //ChangeTipScreen();                        // show tip selection screen
+    ChangeTipScreen();                        // show tip selection screen
     //updateEEPROM();                           // update setting in EEPROM
     handleMoved = true;                       // reset all timers
     RawTemp = denoiseAnalog(LL_ADC_CHANNEL_10);     // restart temp smooth algorithm
@@ -666,10 +668,10 @@ void TipScreen(void)
     switch (selection) 
 		{
       case 0:
-				//ChangeTipScreen();
+				ChangeTipScreen();
 				break;
       case 1:
-				//CalibrationScreen();
+				CalibrationScreen();
 				break;
       case 2:
 				InputNameScreen();
@@ -688,7 +690,7 @@ void TipScreen(void)
 }
 
 // change tip screen
-void ChangeTipScreen() 
+void ChangeTipScreen(void)
 {
   uint8_t selected = CurrentTip;
   uint8_t lastselected = selected;
@@ -710,13 +712,13 @@ void ChangeTipScreen()
     {
         u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
         u8g2_DrawStr(&u8g2, 0, 10, "Select Tip");
-        u8g2_DrawStr(&u8g2, 0, 16 * (arrow + 1), ">");
+        u8g2_DrawStr(&u8g2, 0, 10+16 * (arrow + 1), ">");
         for (uint8_t i=0; i<3; i++)
         {
           uint8_t drawnumber = selected + i - arrow;
           if (drawnumber < NumberOfTips)
           {
-            u8g2_DrawStr(&u8g2, 12, 16 * (i + 1), TipName[selected + i - arrow]);
+            u8g2_DrawStr(&u8g2, 12, 10+16 * (i + 1), TipName[selected + i - arrow]);
           }
         }
       } while(u8g2_NextPage(&u8g2));
@@ -731,7 +733,99 @@ void ChangeTipScreen()
   CurrentTip = selected;
 }
 
+// temperature calibration screen
+void CalibrationScreen(void) {
+  uint16_t CalTempNew[4]; 
+  for (uint8_t CalStep = 0; CalStep < 3; CalStep++) {
+    SetTemp = CalTemp[CurrentTip][CalStep];
+    setRotary(100, 500, 1, SetTemp);
+    beepIfWorky = true;
+    bool    lastbutton = (!digitalRead(BUTTON_PIN));
 
+    do {
+      SENSORCheck();      // reads temperature and vibration switch of the iron
+      Thermostat();       // heater control
+      
+      u8g.firstPage();
+      do {
+        u8g.setFont(u8g_font_9x15);
+        u8g.setFontPosTop();
+        u8g.drawStr( 0, 0,  F("Calibration"));
+        u8g.setPrintPos(0, 16); u8g.print(F("Step: ")); u8g.print(CalStep + 1); u8g.print(" of 3");
+        if (isWorky) {
+          u8g.setPrintPos(0, 32); u8g.print(F("Set measured"));
+          u8g.setPrintPos(0, 48); u8g.print(F("temp: ")); u8g.print(getRotary());
+        } else {
+          u8g.setPrintPos(0, 32); u8g.print(F("ADC:  ")); u8g.print(uint16_t(RawTemp));
+          u8g.setPrintPos(0, 48); u8g.print(F("Please wait..."));
+        }
+      } while(u8g.nextPage());
+    if (lastbutton && digitalRead(BUTTON_PIN)) {delay(10); lastbutton = false;}
+    } while (digitalRead(BUTTON_PIN) || lastbutton);
+
+  CalTempNew[CalStep] = getRotary();
+  beep(); delay (10);
+  }
+
+  analogWrite(CONTROL_PIN, HEATER_OFF);       // shut off heater
+  delayMicroseconds(TIME2SETTLE);             // wait for voltage to settle
+  CalTempNew[3] = getChipTemp();              // read chip temperature
+  if ((CalTempNew[0] + 10 < CalTempNew[1]) && (CalTempNew[1] + 10 < CalTempNew[2])) {
+    if (MenuScreen(StoreItems, sizeof(StoreItems), 0)) {
+      for (uint8_t i = 0; i < 4; i++) CalTemp[CurrentTip][i] = CalTempNew[i];
+    }
+  }
+}
+
+// input tip name screen
+void InputNameScreen(void) 
+{
+  uint8_t value, i;
+  char sprintf_tmp[6] = {0};
+  
+  for (uint8_t digit = 0; digit < (TIPNAMELENGTH - 1); digit++) 
+  {
+    bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+    setRotary(31, 96, 1, 65);
+    do
+    {
+      value = getRotary();
+      if (value == 31)
+      {
+        value = 95;
+        setRotary(31, 96, 1, 95);
+      }
+      else if (value == 96) 
+      {
+        value = 32; 
+        setRotary(31, 96, 1, 32);
+      }
+      u8g2_FirstPage(&u8g2);
+      do 
+      {
+        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+        u8g2_DrawStr(&u8g2, 0, 10, "Enter Tip Name");
+        u8g2_DrawStr(&u8g2, 9 * digit, 58, "^");
+        for (uint8_t i = 0; i < digit; i++) 
+        {
+          sprintf_tmp[i] = TipName[CurrentTip][i];
+        }
+        sprintf_tmp[digit] = value;
+        u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp);
+      } while(u8g2_NextPage(&u8g2));
+      if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+      {
+        LL_mDelay(10);
+        lastbutton = false;
+      }
+    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+    TipName[CurrentTip][digit] = value;
+    beep();
+    LL_mDelay(10);
+  }
+  TipName[CurrentTip][TIPNAMELENGTH - 1] = 0;
+  return;
+}
 
 // add new tip screen
 void AddTipScreen() 
