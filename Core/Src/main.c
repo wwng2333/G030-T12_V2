@@ -163,6 +163,7 @@ void SENSORCheck(void);
 void Thermostat(void);
 void TimerScreen(void);
 void SetupScreen(void);
+void TipScreen(void);
 void InfoScreen(void);
 void TempScreen(void);
 uint16_t InputScreen(const char *Items[]);
@@ -632,7 +633,7 @@ void SetupScreen(void)
     selection = MenuScreen(SetupItems, 11, selection);
     switch (selection) 
 		{
-//      case 0:   TipScreen(); repeat = false; break;
+      case 0:   TipScreen(); repeat = false; break;
       case 1:   TempScreen(); break;
       case 2:   TimerScreen(); break;
       case 3:   PIDenable = MenuScreen(ControlTypeItems, 3, PIDenable); break;
@@ -648,6 +649,38 @@ void SetupScreen(void)
 	handleMoved = true;
 	SetTemp = SaveSetTemp;
 	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);
+}
+
+// tip settings screen
+void TipScreen(void)
+{
+  uint8_t selection = 0;
+  bool repeat = true;  
+  while (repeat) 
+	{
+    selection = MenuScreen(TipItems, 7, selection);
+    switch (selection) 
+		{
+      case 0:
+				//ChangeTipScreen();
+				break;
+      case 1:
+				//CalibrationScreen();
+				break;
+      case 2:
+				//InputNameScreen();
+				break;
+      case 3:
+				//DeleteTipScreen();
+				break;
+      case 4:
+				//AddTipScreen();
+				break;
+      default:
+				repeat = false;
+				break;
+    }
+  }
 }
 
 // information display screen
