@@ -75,17 +75,7 @@ extern "C" {
 // Type of rotary encoder
 #define ROTARY_TYPE   0         // 0: 2 increments/step; 1: 4 increments/step (default)
 
-// Pins
-#define SENSOR_PIN    A0        // tip temperature sense
-#define VIN_PIN       A1        // input voltage sense
-#define BUZZER_PIN     5        // buzzer
-#define BUTTON_PIN     6        // rotary encoder switch
-#define ROTARY_1_PIN   7        // rotary encoder 1
-#define ROTARY_2_PIN   8        // rotary encoder 2
-#define CONTROL_PIN    9        // heater MOSFET PWM control
-#define SWITCH_PIN    10        // handle vibration switch
-
-// Default temperature control values (recommended soldering temperature: 300-380°C)
+// Default temperature control values (recommended soldering temperature: 300-380 C)
 #define TEMP_MIN      150       // min selectable temperature
 #define TEMP_MAX      400       // max selectable temperature
 #define TEMP_DEFAULT  200       // default start setpoint
@@ -100,7 +90,7 @@ extern "C" {
 #define TEMPCHP       30        // chip temperature while calibration
 #define TIPMAX        8         // max number of tips
 #define TIPNAMELENGTH 6         // max length of tip names (including termination)
-#define TIPNAME       "BC1.5"   // default tip name
+#define TIPNAME       "T12-KU"   // default tip name
 
 // Default timer values (0 = disabled)
 #define TIME2SLEEP     5        // time to enter sleep mode in minutes
@@ -111,10 +101,10 @@ extern "C" {
 #define TIME2SETTLE   950       // time in microseconds to allow OpAmp output to settle
 #define SMOOTHIE      0.05      // OpAmp output smooth factor (1=no smoothing; 0.05 default)
 #define PID_ENABLE    true     // enable PID control
-#define BEEP_ENABLE   false      // enable/disable buzzer
+#define BEEP_ENABLE   true      // enable/disable buzzer
 #define BODYFLIP      false     // enable/disable screen flip
 #define ECREVERSE     false     // enable/disable rotary encoder reverse
-#define MAINSCREEN    0         // type of main screen (0: big numbers; 1: more infos)
+#define MAINSCREEN    1         // type of main screen (0: big numbers; 1: more infos)
 
 #define EEPROM_IDENT  0xE76C   // to identify if EEPROM was written by this program
 

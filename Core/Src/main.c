@@ -67,7 +67,7 @@ SystemParam_B Param_B = {0};
 
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
-double consKp=66, consKi=0.5, consKd=1;
+double consKp=66, consKi=0.8, consKd=0;
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -361,9 +361,17 @@ void MainScreen(void)
 		
 		if(MainScrType)
 		{
+			if(d0)
+			{
+				u8g2_DrawStr(&u8g2, 52, 62, ".");
+			}
+			
 			PWM_Output = Output / 1999 * 100;
-			sprintf(sprintf_tmp, " %d%%", PWM_Output);
-			u8g2_DrawStr(&u8g2, 85, 32, sprintf_tmp);
+			sprintf(sprintf_tmp, "%d%%", PWM_Output);
+			u8g2_DrawStr(&u8g2, 92, 28, sprintf_tmp);
+			
+			sprintf(sprintf_tmp, "%.1fC", TMP75_ReadTemp());
+			u8g2_DrawStr(&u8g2, 81, 45, sprintf_tmp);
 			
 			u8g2_DrawStr(&u8g2, 0, 62, TipName[CurrentTip]);
 			sprintf(sprintf_tmp, "%.1fV", (float)Vin*0.001);
@@ -373,27 +381,20 @@ void MainScreen(void)
 			
 			if (ShowTemp > 500)
 			{
-				u8g2_DrawStr(&u8g2, 37, 45, "000");
+				u8g2_DrawStr(&u8g2, 10, 45, "ERR");
 			}
 			else
 			{
 				sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
-				if (ShowTemp < 100)
-				{
-					u8g2_DrawStr(&u8g2, 40, 45, sprintf_tmp);
-				}
-				else
-				{
-					u8g2_DrawStr(&u8g2, 37, 45, sprintf_tmp);
-				}
+				u8g2_DrawStr(&u8g2, 10, 45, sprintf_tmp);
 			}
 		}
 		else
 		{
-			u8g2_SetFont(&u8g2, u8g2_font_fub42_tn);
+			u8g2_SetFont(&u8g2, u8g2_font_7Segments_26x42_mn);
 			if (ShowTemp > 500)
 			{
-				u8g2_DrawStr(&u8g2, 15, 60, "000");
+				u8g2_DrawStr(&u8g2, 15, 60, "ERR");
 			}
 			else
 			{
@@ -546,7 +547,7 @@ void SLEEPCheck(void)
 void SENSORCheck(void)
 {
 	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
-	LL_mDelay(1); // wait for voltage to settle
+	LL_mDelay(2); // wait for voltage to settle
 	
 	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);  // read ADC value for temperature
 	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_11) ? 0 : 1; // check handle vibration switch.

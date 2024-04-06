@@ -172,13 +172,6 @@ void EXTI4_15_IRQHandler(void)
 	}
 	LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_14);
   /* USER CODE END EXTI4_15_IRQn 0 */
-  if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_11) != RESET)
-  {
-    LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_11);
-    /* USER CODE BEGIN LL_EXTI_LINE_11_FALLING */
-		//printf("handle moved!\n");
-    /* USER CODE END LL_EXTI_LINE_11_FALLING */
-  }
   if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_14) != RESET)
   {
     LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_14);
