@@ -62,7 +62,8 @@ uint8_t PWM_Output;
 
 PID_TypeDef TPID;
 
-SystemParamStore SystemParam = {0};
+SystemParam_A Param_A = {0};
+SystemParam_B Param_B = {0};
 
 // Define the aggressive and conservative PID tuning parameters
 double aggKp=11, aggKi=0.5, aggKd=1;
@@ -144,14 +145,12 @@ uint8_t   SensorCounter = 255;
 
 __IO uint32_t TIM16_Tick = 0;
 
-uint8_t u8g2_update_flag = 0;
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void MainScreen(u8g2_t *u8g2);
+void MainScreen(void);
 void RawTemp_Read(void);
 void Vin_Read(void);
 void Vref_Read(void);
@@ -159,6 +158,7 @@ void Temp_ADC_Read(void);
 uint16_t denoiseAnalog(uint32_t adc_ch);
 void calculateTemp(void);
 void ROTARYCheck(void);
+void SLEEPCheck(void);
 void SENSORCheck(void);
 void Thermostat(void);
 void TimerScreen(void);
@@ -173,6 +173,8 @@ void CalibrationScreen(void);
 void MessageScreen(const char *Items[], uint8_t numberOfItems);
 void InfoScreen(void);
 void TempScreen(void);
+void getEEPROM(void);
+void updateEEPROM(void);
 uint16_t InputScreen(const char *Items[]);
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected);
 void beep(void);
@@ -181,8 +183,6 @@ uint16_t getRotary(void);
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max);
 void Read_System_Parmeter(void);
 uint32_t get_sys_tick(void);
-void t1_1s_cb(void* para);
-void t2_300ms_cb(void* para);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -253,35 +253,9 @@ int main(void)
 	LL_TIM_EnableIT_CC1(TIM16); //Enable TIM16 Interrupt
 	LL_TIM_CC_EnableChannel(TIM16, LL_TIM_CHANNEL_CH1N);
 	LL_TIM_EnableCounter(TIM16);
-	timer_init();
-	timer_id t1 = timer_creat(t1_1s_cb, 0, 1000, true, NULL);
-	timer_id t2 = timer_creat(t2_300ms_cb, 0, 300, true, NULL);
-	timer_sched();
-	//Test flash
-//	uint16_t len;
-//	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
-//	if(len > (FLASH_PAGE_SIZE >> 3))
-//	{
-//		printf("SystemParam size over flash page size...\n");
-//	}
-//	else
-//	{
-//		if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len) != 0x00U)
-//		{
-//			printf("Save param failed!\n");
-//		}
-//		else
-//		{
-//			
-//			printf("Save param OK!\n");
-//		}
-//	}
-	uint32_t test;
-	test = *((uint32_t *)SYSTEM_ARG_STORE_START_ADDR);
-	printf("test: %u, ", test);
-	memset(&SystemParam, 0, sizeof(SystemParam));
-	memcpy(&SystemParam, (const void*)SYSTEM_ARG_STORE_START_ADDR, sizeof(SystemParam));
-	//Read_System_Parmeter();
+	
+	// get default values from EEPROM
+	//getEEPROM();
 	
 	// set screen flip
 	SetFlip();
@@ -293,7 +267,7 @@ int main(void)
   // read and set current iron temperature
   SetTemp = DefaultTemp;
   RawTemp_Read();
-  ChipTemp = TMP75_ReadTemp();
+  //ChipTemp = TMP75_ReadTemp();
   calculateTemp();
 	
 	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, DefaultTemp);
@@ -306,11 +280,12 @@ int main(void)
   while (1)
   {
 		ROTARYCheck();
+		SLEEPCheck();
 		//printf("%d->", get_sys_tick());
 		SENSORCheck();
 		//printf("%d\n", get_sys_tick());
 		Thermostat();
-		MainScreen(&u8g2);
+		MainScreen();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -362,18 +337,18 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void MainScreen(u8g2_t *u8g2)
+void MainScreen(void)
 {
   char sprintf_tmp[8] = {0};
-  u8g2_FirstPage(u8g2);
-  u8g2_SetFontMode(u8g2, 1);
-  u8g2_SetFontDirection(u8g2, 0);
+  u8g2_FirstPage(&u8g2);
+  u8g2_SetFontMode(&u8g2, 1);
+  u8g2_SetFontDirection(&u8g2, 0);
   do
   {
-    u8g2_SetFont(u8g2, u8g2_font_9x15_tr);
-    u8g2_DrawStr(u8g2, 0, 10, "SET:");
+    u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+    u8g2_DrawStr(&u8g2, 0, 10, "SET:");
     sprintf(sprintf_tmp, "%hu", (uint16_t)Setpoint);
-    u8g2_DrawStr(u8g2, 40, 10, sprintf_tmp);
+    u8g2_DrawStr(&u8g2, 40, 10, sprintf_tmp);
 		
 		if(ShowTemp > 500) strcpy(sprintf_tmp, "ERROR");
 		else if(inOffMode) strcpy(sprintf_tmp, "  OFF");
@@ -382,44 +357,58 @@ void MainScreen(u8g2_t *u8g2)
 		else if(isWorky) strcpy(sprintf_tmp, "WORKY");
 		else if(Output < 180) strcpy(sprintf_tmp, " HEAT");
 		else strcpy(sprintf_tmp, " HOLD");
-		u8g2_DrawStr(u8g2, 83, 10, sprintf_tmp);
+		u8g2_DrawStr(&u8g2, 83, 10, sprintf_tmp);
 		
 		if(MainScrType)
 		{
 			PWM_Output = Output / 1999 * 100;
 			sprintf(sprintf_tmp, " %d%%", PWM_Output);
-			u8g2_DrawStr(u8g2, 85, 32, sprintf_tmp);
+			u8g2_DrawStr(&u8g2, 85, 32, sprintf_tmp);
 			
-			u8g2_DrawStr(u8g2, 0, 62, TipName[CurrentTip]);
+			u8g2_DrawStr(&u8g2, 0, 62, TipName[CurrentTip]);
 			sprintf(sprintf_tmp, "%.1fV", (float)Vin*0.001);
-			u8g2_DrawStr(u8g2, 83, 62, sprintf_tmp);
+			u8g2_DrawStr(&u8g2, 83, 62, sprintf_tmp);
 
-			u8g2_SetFont(u8g2, u8g2_font_freedoomr25_tn);
+			u8g2_SetFont(&u8g2, u8g2_font_freedoomr25_tn);
 			
 			if (ShowTemp > 500)
 			{
-				u8g2_DrawStr(u8g2, 37, 45, "000");
+				u8g2_DrawStr(&u8g2, 37, 45, "000");
 			}
 			else
 			{
 				sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
-				u8g2_DrawStr(u8g2, 37, 45, sprintf_tmp);
+				if (ShowTemp < 100)
+				{
+					u8g2_DrawStr(&u8g2, 40, 45, sprintf_tmp);
+				}
+				else
+				{
+					u8g2_DrawStr(&u8g2, 37, 45, sprintf_tmp);
+				}
 			}
 		}
 		else
 		{
-			u8g2_SetFont(u8g2, u8g2_font_fub42_tn);
+			u8g2_SetFont(&u8g2, u8g2_font_fub42_tn);
 			if (ShowTemp > 500)
 			{
-				u8g2_DrawStr(u8g2, 15, 60, "000");
+				u8g2_DrawStr(&u8g2, 15, 60, "000");
 			}
 			else
 			{
 				sprintf(sprintf_tmp, "%d", (uint16_t)CurrentTemp);
-				u8g2_DrawStr(u8g2, 15, 60, sprintf_tmp);
+				if (ShowTemp < 100)
+				{
+					u8g2_DrawStr(&u8g2, 32, 60, sprintf_tmp);
+				}
+				else
+				{
+					u8g2_DrawStr(&u8g2, 15, 60, sprintf_tmp);
+				}
 			}
 		}
-  } while (u8g2_NextPage(u8g2));
+  } while (u8g2_NextPage(&u8g2));
 }
 
 void ROTARYCheck(void)
@@ -519,6 +508,40 @@ uint16_t denoiseAnalog(uint32_t adc_ch)
   return (result >> 5);                 // devide by 32 and return value
 }
 
+// check and activate/deactivate sleep modes
+void SLEEPCheck(void) 
+{
+  if (handleMoved) // if handle was moved
+	{
+    if (inSleepMode) // in sleep or off mode?
+		{
+      if ((CurrentTemp + 20) < SetTemp) // if temp is well below setpoint
+      {
+				LL_TIM_OC_SetCompareCH1(TIM3, Output); // then start the heater right now
+			}
+      beep();                           // beep on wake-up
+      beepIfWorky = true;               // beep again when working temperature is reached
+    }
+    handleMoved = false;                // reset handleMoved flag
+    inSleepMode = false;                // reset sleep flag
+    inOffMode   = false;                // reset off flag
+    sleepmillis = get_sys_tick();       // reset sleep timer
+  }
+
+  // check time passed since the handle was moved
+  goneMinutes = (get_sys_tick() - sleepmillis) / 60000;
+  if ((!inSleepMode) && (time2sleep > 0) && (goneMinutes >= time2sleep)) 
+	{
+		inSleepMode = true;
+		beep();
+	}
+  if((!inOffMode) && (time2off > 0) && (goneMinutes >= time2off)) 
+	{
+		inOffMode = true; 
+		beep();
+	}
+}
+
 // reads temperature, vibration switch and supply voltages
 void SENSORCheck(void)
 {
@@ -526,9 +549,11 @@ void SENSORCheck(void)
 	LL_mDelay(1); // wait for voltage to settle
 	
 	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);  // read ADC value for temperature
-	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_10); // check handle vibration switch
+	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_10) ? 0 : 1; // check handle vibration switch.
+	//printf("d=%d\n", d);
 	if (d != d0) // set flag if handle was moved
 	{
+		printf("handle moved!\n");
 		handleMoved = true; 
 		d0 = d;
 	} 
@@ -576,7 +601,7 @@ void SENSORCheck(void)
     beep();                                   // beep for info
     TipIsPresent = true;                      // tip is present now
     ChangeTipScreen();                        // show tip selection screen
-    //updateEEPROM();                           // update setting in EEPROM
+    updateEEPROM();                           // update setting in EEPROM
     handleMoved = true;                       // reset all timers
     RawTemp = denoiseAnalog(LL_ADC_CHANNEL_10);     // restart temp smooth algorithm
     c0 = 0;                                 // switch must be released
@@ -661,7 +686,7 @@ void SetupScreen(void)
       default:  repeat = false; break;
     }
   }
-	//updateEEPROM();
+	updateEEPROM();
 	handleMoved = true;
 	SetTemp = SaveSetTemp;
 	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);
@@ -1140,44 +1165,83 @@ uint16_t getRotary(void)
 	return (count >> ROTARY_TYPE);
 }
 
+// reads user settings from EEPROM; if EEPROM values are invalid, write defaults
+void getEEPROM(void)
+{
+	//memset(&Param_A, 0, sizeof(Param_A));
+	//memset(&Param_B, 0, sizeof(Param_B));
+	memcpy(&Param_A, (const void*)SYSTEM_ARG_STORE_START_ADDR, sizeof(Param_A));
+	memcpy(&Param_B, (const void*)(SYSTEM_ARG_STORE_START_ADDR+2048), sizeof(Param_B));
+	if (Param_A.identifier == EEPROM_IDENT && Param_B.identifier == EEPROM_IDENT)
+	{
+		printf("Param_A&B check ok!\n");
+		DefaultTemp = Param_A.DefaultTemp;
+		SleepTemp = Param_A.SleepTemp;
+		BoostTemp = Param_A.BoostTemp;
+		time2sleep = Param_A.time2sleep;
+		time2off = Param_B.time2off;
+		timeOfBoost = Param_B.timeOfBoost;
+		SleepTemp = Param_B.SleepTemp;
+		MainScrType = Param_B.MainScrType;
+		beepEnable = Param_B.beepEnable;
+		BodyFlip = Param_B.BodyFlip;
+		ECReverse = Param_B.ECReverse;
+	}
+	else
+	{
+		printf("Param_A&B check fail!\n");
+		updateEEPROM();
+	}
+}
+
+// writes user settings to EEPROM using updade function to minimize write cycles
+void updateEEPROM(void)
+{
+	Param_A.identifier = EEPROM_IDENT;
+	Param_A.DefaultTemp = DefaultTemp;
+	Param_A.SleepTemp = SleepTemp;
+	Param_A.BoostTemp = BoostTemp;
+	Param_A.time2sleep = time2sleep;
+
+	Param_B.identifier = EEPROM_IDENT;
+	Param_B.time2off = time2off;
+	Param_B.timeOfBoost = timeOfBoost;
+	Param_B.SleepTemp = SleepTemp;
+	Param_B.MainScrType = MainScrType;
+	Param_B.beepEnable = beepEnable;
+	Param_B.BodyFlip = BodyFlip;
+	Param_B.ECReverse = ECReverse;
+	
+	uint16_t len;
+	len = XMEM_ALIGN_SIZE(sizeof(Param_A), 8);
+	if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&Param_A, len) != 0x00U)
+	{
+		printf("Save Param_A failed!\n");
+	}
+	else
+	{
+		printf("Save Param_A OK!\n");
+	}
+	
+	if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR+2048, (uint64_t *)&Param_B, len) != 0x00U)
+	{
+		printf("Save Param_B failed!\n");
+	}
+	else
+	{
+		
+		printf("Save Param_B OK!\n");
+	}
+}
+
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
 {
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-void Read_System_Parmeter(void)
-{
-	uint32_t test;
-	test = *((uint32_t *)SYSTEM_ARG_STORE_START_ADDR);
-//	uint16_t len;
-//	//uint8_t crc;
-//	
-//	len = XMEM_ALIGN_SIZE(sizeof(SystemParamStore), 8);
-//	printf("SystemParamStore size: %d %d\n", sizeof(SystemParamStore), len);
-//	
-//	if(len > (FLASH_PAGE_SIZE >> 3))
-//	{
-//		len = (FLASH_PAGE_SIZE >> 3);
-//		printf("SystemParam size over flash page size...\n");
-//	}
-//	
-//	vFlash_Read_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&SystemParam, len);
-}
-
 uint32_t get_sys_tick(void)
 {
 	return TIM16_Tick;
-}
-
-void t1_1s_cb(void* para)
-{
-	//printf("t1_cb at %d\n", get_sys_tick());
-}
-
-void t2_300ms_cb(void* para)
-{
-	u8g2_update_flag = 0;
-	//printf("t2_cb at %d\n", get_sys_tick());
 }
 
 int constrain(int x, int min, int max) {

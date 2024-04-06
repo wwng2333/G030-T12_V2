@@ -47,7 +47,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdbool.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -125,7 +125,24 @@ typedef struct
 	uint16_t SleepTemp;
 	uint8_t BoostTemp;
 	uint8_t time2sleep;
-}SystemParamStore, SystemParamStore_t;
+} SystemParam_A;
+
+typedef struct
+{
+	uint16_t identifier;
+	uint8_t time2off;
+	uint8_t timeOfBoost;
+	uint8_t SleepTemp;
+	union {
+		struct {
+			unsigned int MainScrType : 1;
+			unsigned int beepEnable : 1;
+			unsigned int BodyFlip : 1;
+			unsigned int ECReverse : 1;
+		};
+	uint8_t all;
+	};
+} SystemParam_B;
 
 /* USER CODE END EM */
 

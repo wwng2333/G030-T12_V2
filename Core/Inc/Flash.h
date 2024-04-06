@@ -8,7 +8,7 @@
 
 #define XOFS(t , m)                                                         ((u32)(&(((t *)0)->m)))
 
-#define SYSTEM_ARG_STORE_START_ADDRE                                        (0x0800F800UL)
+#define SYSTEM_ARG_STORE_START_ADDRE                                        (0x0800F000UL)
 
 #define FLASH_OPT_OVERTIMER         										(0x1FFFF)
 #define FLASH_OPT_TRY_COUNT         										(5)
@@ -18,7 +18,7 @@
 
 #define FLASH_PAGE_SIZE 0x800
 
-#define SYSTEM_ARG_STORE_START_ADDR 0x0800F800
+#define SYSTEM_ARG_STORE_START_ADDR 0x0800F000
 
 static uint8_t ubFLASH_Unlock(void);
 static uint8_t ubFLASH_Lock(void);
