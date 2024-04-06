@@ -140,14 +140,17 @@ void EXTI4_15_IRQHandler(void)
   /* USER CODE BEGIN EXTI4_15_IRQn 0 */
 	static uint8_t _count = 0;
 	static uint8_t b_flag;
-	uint8_t a_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_14);
-	uint8_t b_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_15);
+	uint8_t a_value, b_value, handle_value;
+	a_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_14);
+	b_value = LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_15);
 	LL_EXTI_DisableIT_0_31(LL_EXTI_LINE_14);
 	if(a_value == RESET && _count == 0)
 	{
 		b_flag = 0;
 		if(b_value)
+		{
 			b_flag = 1;
+		}
 		_count = 1;
 	}
 	
@@ -169,12 +172,12 @@ void EXTI4_15_IRQHandler(void)
 	}
 	LL_EXTI_EnableIT_0_31(LL_EXTI_LINE_14);
   /* USER CODE END EXTI4_15_IRQn 0 */
-  if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_10) != RESET)
+  if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_11) != RESET)
   {
-    LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_10);
-    /* USER CODE BEGIN LL_EXTI_LINE_10_FALLING */
-		printf("handle moved!\n");
-    /* USER CODE END LL_EXTI_LINE_10_FALLING */
+    LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_11);
+    /* USER CODE BEGIN LL_EXTI_LINE_11_FALLING */
+		//printf("handle moved!\n");
+    /* USER CODE END LL_EXTI_LINE_11_FALLING */
   }
   if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_14) != RESET)
   {

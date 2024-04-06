@@ -246,8 +246,8 @@ int main(void)
 	LL_TIM_EnableCounter(TIM3);
 
 	LL_TIM_EnableAllOutputs(TIM14); //Enable TIM for beep
-	LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
-	LL_TIM_DisableCounter(TIM14); //Disable now, beep later.
+	LL_TIM_CC_DisableChannel(TIM14, LL_TIM_CHANNEL_CH1);
+	LL_TIM_EnableCounter(TIM14); //Disable now, beep later.
 	
 	LL_TIM_EnableAllOutputs(TIM16); //Enable TIM for tick
 	LL_TIM_EnableIT_CC1(TIM16); //Enable TIM16 Interrupt
@@ -549,7 +549,7 @@ void SENSORCheck(void)
 	LL_mDelay(1); // wait for voltage to settle
 	
 	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);  // read ADC value for temperature
-	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_10) ? 0 : 1; // check handle vibration switch.
+	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_11) ? 0 : 1; // check handle vibration switch.
 	//printf("d=%d\n", d);
 	if (d != d0) // set flag if handle was moved
 	{
@@ -1143,9 +1143,9 @@ void beep(void)
 {
 	if(beepEnable)
 	{
-		LL_TIM_EnableCounter(TIM14);
+		LL_TIM_CC_EnableChannel(TIM14, LL_TIM_CHANNEL_CH1);
 		LL_mDelay(32);
-		LL_TIM_DisableCounter(TIM14);
+		LL_TIM_CC_DisableChannel(TIM14, LL_TIM_CHANNEL_CH1);
 	}
 }
 
