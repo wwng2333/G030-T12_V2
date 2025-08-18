@@ -35,7 +35,7 @@
 //#include "stm32_button.h"
 #include "timer.h"
 #include <string.h>
-#include "mfbd.h"
+//#include "mfbd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -144,6 +144,15 @@ uint8_t   goneSeconds;
 uint8_t   SensorCounter = 255;
 
 __IO uint32_t TIM16_Tick = 0;
+
+typedef enum {
+    HEATING,
+    WAITING_FOR_ADC,
+    //READING_ADC
+} TempControlState;
+
+volatile TempControlState controlState = HEATING;
+volatile uint32_t adcWaitTimestamp = 0;
 
 /* USER CODE END PV */
 
@@ -543,31 +552,55 @@ void SLEEPCheck(void)
 	}
 }
 
+
+
 // reads temperature, vibration switch and supply voltages
 void SENSORCheck(void)
 {
-	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
-	LL_mDelay(2); // wait for voltage to settle
-	
-	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);  // read ADC value for temperature
-	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_11) ? 0 : 1; // check handle vibration switch.
-	//printf("d=%d\n", d);
-	if (d != d0) // set flag if handle was moved
-	{
-		printf("handle moved!\n");
-		handleMoved = true; 
-		d0 = d;
-	} 
-	if (! SensorCounter--) // get Vin every now and then
-	{
-		Vin_Read();
-	}
+//	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater in order to measure temperature
+//	LL_mDelay(2); // wait for voltage to settle
+//	
+//	double temp = denoiseAnalog(LL_ADC_CHANNEL_10);  // read ADC value for temperature
+//	uint8_t d = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_11) ? 0 : 1; // check handle vibration switch.
+//	//printf("d=%d\n", d);
+//	if (d != d0) // set flag if handle was moved
+//	{
+//		printf("handle moved!\n");
+//		handleMoved = true; 
+//		d0 = d;
+//	} 
+//	if (! SensorCounter--) // get Vin every now and then
+//	{
+//		Vin_Read();
+//	}
 
-	LL_TIM_OC_SetCompareCH1(TIM3, Output);			// turn on again heater
-	
-  RawTemp += (temp - RawTemp) * SMOOTHIE;     // stabilize ADC temperature reading
-  calculateTemp();                            // calculate real temperature value
-	
+//	LL_TIM_OC_SetCompareCH1(TIM3, Output);			// turn on again heater
+//	
+//  RawTemp += (temp - RawTemp) * SMOOTHIE;     // stabilize ADC temperature reading
+//  calculateTemp();                            // calculate real temperature value
+
+    switch(controlState) {
+        case HEATING:
+            // When it's time to read the temperature, switch state.
+            LL_TIM_OC_SetCompareCH1(TIM3, 0); // Turn off the heater
+            adcWaitTimestamp = get_sys_tick(); // Record the current time
+            controlState = WAITING_FOR_ADC;
+            break;
+
+        case WAITING_FOR_ADC:
+            // Wait for 2ms for the voltage to settle, without blocking.
+            if (get_sys_tick() - adcWaitTimestamp >= 2) {
+                double temp = denoiseAnalog(LL_ADC_CHANNEL_10);
+                RawTemp += (temp - RawTemp) * SMOOTHIE;
+                calculateTemp();
+
+                // Reading is done, turn the heater back on.
+                LL_TIM_OC_SetCompareCH1(TIM3, Output); // Turn the heater back on
+                controlState = HEATING;
+            }
+            break;
+    }
+
   // stabilize displayed temperature when around setpoint
   if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5))
 	{
@@ -591,23 +624,23 @@ void SENSORCheck(void)
 		isWorky = false;
 	}
 	
-  // checks if tip is present or currently inserted
-  if (ShowTemp > 500) // tip removed ?
-	{
-		TipIsPresent = false;
-	}		
-  if (!TipIsPresent && (ShowTemp < 500)) 			// new tip inserted ?
-	{
-    LL_TIM_OC_SetCompareCH1(TIM3, 0);     // shut off heater
-    beep();                                   // beep for info
-    TipIsPresent = true;                      // tip is present now
-    ChangeTipScreen();                        // show tip selection screen
-    updateEEPROM();                           // update setting in EEPROM
-    handleMoved = true;                       // reset all timers
-    RawTemp = denoiseAnalog(LL_ADC_CHANNEL_10);     // restart temp smooth algorithm
-    c0 = 0;                                 // switch must be released
-    setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);  // reset rotary encoder
-  }
+//  // checks if tip is present or currently inserted
+//  if (ShowTemp > 500) // tip removed ?
+//	{
+//		TipIsPresent = false;
+//	}		
+//  if (!TipIsPresent && (ShowTemp < 500)) 			// new tip inserted ?
+//	{
+//    LL_TIM_OC_SetCompareCH1(TIM3, 0);     // shut off heater
+//    beep();                                   // beep for info
+//    TipIsPresent = true;                      // tip is present now
+//    ChangeTipScreen();                        // show tip selection screen
+//    updateEEPROM();                           // update setting in EEPROM
+//    handleMoved = true;                       // reset all timers
+//    RawTemp = denoiseAnalog(LL_ADC_CHANNEL_10);     // restart temp smooth algorithm
+//    c0 = 0;                                 // switch must be released
+//    setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);  // reset rotary encoder
+//  }
 }
 
 // calculates real temperature value according to ADC reading and calibration values
