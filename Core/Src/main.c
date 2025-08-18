@@ -151,8 +151,17 @@ typedef enum {
     //READING_ADC
 } TempControlState;
 
+typedef enum {
+    BTN_RELEASED,
+    BTN_PRESSED,
+    BTN_LONG_PRESSED
+} ButtonState;
+
 volatile TempControlState controlState = HEATING;
 volatile uint32_t adcWaitTimestamp = 0;
+bool displayNeedsUpdate = true; // Initially true to draw the first frame
+static ButtonState g_buttonState = BTN_RELEASED;
+static uint32_t g_buttonPressTimestamp = 0;
 
 /* USER CODE END PV */
 
@@ -294,7 +303,10 @@ int main(void)
 		SENSORCheck();
 		//printf("%d\n", get_sys_tick());
 		Thermostat();
-		MainScreen();
+		if (displayNeedsUpdate) {
+		  MainScreen();
+			displayNeedsUpdate = false;
+		}
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -423,28 +435,68 @@ void MainScreen(void)
 
 void ROTARYCheck(void)
 {
-	SetTemp = getRotary();
-		
-	// check rotary encoder switch
-	uint8_t c = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0);
-	if ( !c && c0 ) 
-	{
-		beep();
-		buttonmillis = get_sys_tick();
-		while((!LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) && ((get_sys_tick() - buttonmillis) < 500));
-		if ((get_sys_tick() - buttonmillis) >= 500) 
-		{
-			SetupScreen();
-		}
-		else
-		{
-			inBoostMode = !inBoostMode;
-			if (inBoostMode) boostmillis = get_sys_tick();
-			handleMoved = true;
-		}
-	}
-	c0 = c;
+	uint16_t newTemp = getRotary();
+  if (SetTemp != newTemp) {
+      SetTemp = newTemp;
+      displayNeedsUpdate = true;
+  }
 	
+//	// check rotary encoder switch
+//	uint8_t c = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0);
+//	if ( !c && c0 ) 
+//	{
+//		beep();
+//		buttonmillis = get_sys_tick();
+//		while((!LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) && ((get_sys_tick() - buttonmillis) < 500));
+//		if ((get_sys_tick() - buttonmillis) >= 500) 
+//		{
+//			SetupScreen();
+//		}
+//		else
+//		{
+//			inBoostMode = !inBoostMode;
+//			if (inBoostMode) boostmillis = get_sys_tick();
+//			handleMoved = true;
+//			displayNeedsUpdate = true;
+//		}
+//	}
+//	c0 = c;
+
+		bool is_button_down = !LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0);
+    switch (g_buttonState) {
+        case BTN_RELEASED:
+            if (is_button_down) {
+                // 按键刚刚被按下
+                g_buttonPressTimestamp = get_sys_tick();
+                g_buttonState = BTN_PRESSED;
+            }
+            break;
+
+        case BTN_PRESSED:
+            if (!is_button_down) {
+                // 短按事件: 按下时间 < 500ms
+                beep();
+                inBoostMode = !inBoostMode;
+                if (inBoostMode) boostmillis = get_sys_tick();
+                handleMoved = true;
+                displayNeedsUpdate = true;
+                g_buttonState = BTN_RELEASED;
+            } else if (get_sys_tick() - g_buttonPressTimestamp >= 500) {
+                // 长按事件: 按下时间 >= 500ms
+                beep();
+                SetupScreen(); // 注意: SetupScreen 本身是阻塞的，但这是UI逻辑，可以接受
+                g_buttonState = BTN_LONG_PRESSED; // 进入长按状态，防止重复触发
+            }
+            break;
+            
+        case BTN_LONG_PRESSED:
+            if (!is_button_down) {
+                // 从长按状态释放
+                g_buttonState = BTN_RELEASED;
+            }
+            break;
+    }
+
 	// check timer when in boost mode
   if (inBoostMode && timeOfBoost) 
 	{
@@ -453,6 +505,7 @@ void ROTARYCheck(void)
       inBoostMode = false;              // stop boost mode
       beep();                           // beep if boost mode is over
       beepIfWorky = true;               // beep again when working temperature is reached
+			displayNeedsUpdate = true;
     }
   }
 }
@@ -531,11 +584,13 @@ void SLEEPCheck(void)
 			}
       beep();                           // beep on wake-up
       beepIfWorky = true;               // beep again when working temperature is reached
+			displayNeedsUpdate = true;
     }
     handleMoved = false;                // reset handleMoved flag
     inSleepMode = false;                // reset sleep flag
     inOffMode   = false;                // reset off flag
     sleepmillis = get_sys_tick();       // reset sleep timer
+		displayNeedsUpdate = true;
   }
 
   // check time passed since the handle was moved
@@ -544,15 +599,15 @@ void SLEEPCheck(void)
 	{
 		inSleepMode = true;
 		beep();
+		displayNeedsUpdate = true;
 	}
   if((!inOffMode) && (time2off > 0) && (goneMinutes >= time2off)) 
 	{
 		inOffMode = true; 
 		beep();
+		displayNeedsUpdate = true;
 	}
 }
-
-
 
 // reads temperature, vibration switch and supply voltages
 void SENSORCheck(void)
@@ -594,35 +649,36 @@ void SENSORCheck(void)
                 RawTemp += (temp - RawTemp) * SMOOTHIE;
                 calculateTemp();
 
+								// stabilize displayed temperature when around setpoint
+								if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5))
+								{
+									ShowTemp = CurrentTemp;
+									displayNeedsUpdate = true;
+								}
+								if (fabs(ShowTemp - Setpoint) <= 1)
+								{
+									ShowTemp = Setpoint;
+								}
+								
+									// set state variable if temperature is in working range; beep if working temperature was just reached
+								gap = fabs(SetTemp - CurrentTemp);
+								if (gap < 5) 
+								{
+									if (!isWorky && beepIfWorky) beep();
+									isWorky = true;
+									beepIfWorky = false;
+								}
+								else 
+								{
+									isWorky = false;
+								}
+							
                 // Reading is done, turn the heater back on.
                 LL_TIM_OC_SetCompareCH1(TIM3, Output); // Turn the heater back on
                 controlState = HEATING;
             }
             break;
     }
-
-  // stabilize displayed temperature when around setpoint
-  if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5))
-	{
-		ShowTemp = CurrentTemp;
-	}
-  if (fabs(ShowTemp - Setpoint) <= 1)
-	{
-		ShowTemp = Setpoint;
-	}
-	
-	  // set state variable if temperature is in working range; beep if working temperature was just reached
-  gap = fabs(SetTemp - CurrentTemp);
-  if (gap < 5) 
-	{
-    if (!isWorky && beepIfWorky) beep();
-    isWorky = true;
-    beepIfWorky = false;
-  }
-  else 
-	{
-		isWorky = false;
-	}
 	
 //  // checks if tip is present or currently inserted
 //  if (ShowTemp > 500) // tip removed ?
@@ -1059,7 +1115,7 @@ void TimerScreen(void)
 uint8_t MenuScreen(const char *Items[], uint8_t numberOfItems, uint8_t selected) 
 {
   bool isTipScreen;
-	isTipScreen = (strcmp(Items[0], "Tip:") == 0) ? 1 : 0;
+	isTipScreen = (strcmp(Items[0], "Tip:") == 0);
   uint8_t lastselected = selected;
   int8_t arrow = 0;
   if (selected)
