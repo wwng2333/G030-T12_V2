@@ -25,27 +25,48 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "EventRecorder.h"
+//#include "EventRecorder.h"
 #include "oled_driver.h"
 #include "stdio.h"
 #include "i2c.h"
 #include "PID.h"
 #include "math.h"
-#include "Flash.h"
-//#include "stm32_button.h"
+//#include "Flash.h"
 #include "timer.h"
 #include <string.h>
-//#include "mfbd.h"
+#include "SEGGER_RTT.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum {
+    THERMO_COMPUTE, // 计算PID输出的状态
+    THERMO_WAIT     // 等待下一个周期的状态
+} ThermostatState;
 
+typedef enum {
+    HEATING,
+    WAITING_FOR_ADC,
+    //READING_ADC
+} TempControlState;
+
+typedef enum {
+    BTN_RELEASED,
+    BTN_PRESSED,
+    BTN_LONG_PRESSED
+} ButtonState;
+
+typedef enum {
+    DISPLAY_UPDATE,
+    DISPLAY_WAIT
+} DisplayState;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define THERMOSTAT_PERIOD_MS 200
+#define DISPLAY_PERIOD_MS 50
+#define SENSOR_CHECK_PERIOD_MS 100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,7 +79,7 @@
 /* USER CODE BEGIN PV */
 static u8g2_t u8g2;
 uint16_t temp_adc;
-uint8_t PWM_Output;
+uint16_t PWM_Output;
 
 PID_TypeDef TPID;
 
@@ -66,8 +87,8 @@ SystemParam_A Param_A = {0};
 SystemParam_B Param_B = {0};
 
 // Define the aggressive and conservative PID tuning parameters
-double aggKp=11, aggKi=0.5, aggKd=1;
-double consKp=66, consKi=0.8, consKd=0;
+double aggKp=11, aggKi=0., aggKd=0;
+double consKp=11, consKi=0, consKd=0; 
 
 // Default values that can be changed by the user and stored in the EEPROM
 uint16_t  DefaultTemp = TEMP_DEFAULT;
@@ -122,7 +143,7 @@ volatile bool     handleMoved;
  
 // Variables for temperature control
 uint16_t  SetTemp, ShowTemp, gap, Step;
-double    Input, Output, Setpoint, RawTemp, CurrentTemp, ChipTemp;
+double    RawTemp, CurrentTemp, ChipTemp, Input, Output, Setpoint;
 // Variables for voltage readings
 uint16_t  Vcc, Vin;
  
@@ -145,29 +166,23 @@ uint8_t   SensorCounter = 255;
 
 __IO uint32_t TIM16_Tick = 0;
 
-typedef enum {
-    HEATING,
-    WAITING_FOR_ADC,
-    //READING_ADC
-} TempControlState;
-
-typedef enum {
-    BTN_RELEASED,
-    BTN_PRESSED,
-    BTN_LONG_PRESSED
-} ButtonState;
-
 volatile TempControlState controlState = HEATING;
 volatile uint32_t adcWaitTimestamp = 0;
 bool displayNeedsUpdate = true; // Initially true to draw the first frame
 static ButtonState g_buttonState = BTN_RELEASED;
 static uint32_t g_buttonPressTimestamp = 0;
 
+static ThermostatState thermoState = THERMO_COMPUTE; // 初始状态为计算
+static uint32_t thermoTimestamp = 0;
+static DisplayState displayState = DISPLAY_UPDATE;
+static uint32_t displayTimestamp = 0;
+static uint32_t sensorCheckTimestamp = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+void DisplayManager(void);
 void MainScreen(void);
 void RawTemp_Read(void);
 void Vin_Read(void);
@@ -228,15 +243,15 @@ int main(void)
   NVIC_SetPriority(SysTick_IRQn, 3);
 
   /* USER CODE BEGIN Init */
-	EventRecorderInitialize(EventRecordAll, 1U);
-	EventRecorderStart();
+	//EventRecorderInitialize(EventRecordAll, 1U);
+	//EventRecorderStart();
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-	printf("CPU @ %d Hz\n", SystemCoreClock);
+	//printf("CPU @ %d Hz\n", SystemCoreClock);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -255,9 +270,9 @@ int main(void)
 	
 	PID(&TPID, &Input, &Output, &Setpoint, aggKp, aggKi, aggKd, _PID_P_ON_E, _PID_CD_DIRECT);
 	PID_SetMode(&TPID, _PID_MODE_AUTOMATIC);
-	PID_SetSampleTime(&TPID, -1);
+	PID_SetSampleTime(&TPID, 1);
 	PID_SetOutputLimits(&TPID, 0, 1999);
-	
+
 	LL_TIM_EnableAllOutputs(TIM3);
 	LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
 	LL_TIM_OC_SetCompareCH1(TIM3, 0);
@@ -299,10 +314,9 @@ int main(void)
   {
 		ROTARYCheck();
 		SLEEPCheck();
-		//printf("%d->", get_sys_tick());
 		SENSORCheck();
-		//printf("%d\n", get_sys_tick());
 		Thermostat();
+		DisplayManager();
 		if (displayNeedsUpdate) {
 		  MainScreen();
 			displayNeedsUpdate = false;
@@ -358,6 +372,26 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void DisplayManager(void)
+{
+    switch(displayState)
+    {
+        case DISPLAY_UPDATE:
+            displayNeedsUpdate = true; // 只设置标志位
+            displayTimestamp = get_sys_tick();
+            displayState = DISPLAY_WAIT;
+            break;
+            
+        case DISPLAY_WAIT:
+            if (get_sys_tick() - displayTimestamp >= DISPLAY_PERIOD_MS)
+            {
+                displayState = DISPLAY_UPDATE;
+            }
+            break;
+    }
+}
+
 void MainScreen(void)
 {
   char sprintf_tmp[8] = {0};
@@ -624,6 +658,7 @@ void SENSORCheck(void)
 //		handleMoved = true; 
 //		d0 = d;
 //	} 
+
 //	if (! SensorCounter--) // get Vin every now and then
 //	{
 //		Vin_Read();
@@ -636,67 +671,47 @@ void SENSORCheck(void)
 
     switch(controlState) {
         case HEATING:
-            // When it's time to read the temperature, switch state.
-            LL_TIM_OC_SetCompareCH1(TIM3, 0); // Turn off the heater
-            adcWaitTimestamp = get_sys_tick(); // Record the current time
-            controlState = WAITING_FOR_ADC;
+            // This is the normal state. The heater is controlled by the last 'Output' value.
+            // We wait here until it's time to check the sensor again.
+            if (get_sys_tick() - sensorCheckTimestamp >= SENSOR_CHECK_PERIOD_MS) 
+            {
+                // Time to read the temperature. First, turn off the heater.
+                LL_TIM_OC_SetCompareCH1(TIM3, 0);
+                adcWaitTimestamp = get_sys_tick();
+                controlState = WAITING_FOR_ADC;
+            }
             break;
 
         case WAITING_FOR_ADC:
-            // Wait for 2ms for the voltage to settle, without blocking.
+            // Wait for 2ms for the voltage to settle
             if (get_sys_tick() - adcWaitTimestamp >= 2) {
+                // Perform the ADC reading and temperature calculation
                 double temp = denoiseAnalog(LL_ADC_CHANNEL_10);
                 RawTemp += (temp - RawTemp) * SMOOTHIE;
-                calculateTemp();
+                calculateTemp(); // CurrentTemp is updated here
 
-								// stabilize displayed temperature when around setpoint
-								if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5))
-								{
-									ShowTemp = CurrentTemp;
-									displayNeedsUpdate = true;
-								}
-								if (fabs(ShowTemp - Setpoint) <= 1)
-								{
-									ShowTemp = Setpoint;
-								}
-								
-									// set state variable if temperature is in working range; beep if working temperature was just reached
-								gap = fabs(SetTemp - CurrentTemp);
-								if (gap < 5) 
-								{
-									if (!isWorky && beepIfWorky) beep();
-									isWorky = true;
-									beepIfWorky = false;
-								}
-								else 
-								{
-									isWorky = false;
-								}
-							
-                // Reading is done, turn the heater back on.
-                LL_TIM_OC_SetCompareCH1(TIM3, Output); // Turn the heater back on
+                // Update display and status variables
+                if ((ShowTemp != Setpoint) || (fabs(ShowTemp - CurrentTemp) > 5)) {
+                    ShowTemp = CurrentTemp;
+                }
+                gap = fabs(SetTemp - CurrentTemp);
+                if (gap < 5) {
+                    if (!isWorky && beepIfWorky) beep();
+                    isWorky = true;
+                    beepIfWorky = false;
+                } else {
+                    isWorky = false;
+                }
+            
+                // Reading is done. Now, turn the heater back on using the value calculated by Thermostat().
+                LL_TIM_OC_SetCompareCH1(TIM3, Output); 
+                
+                // Return to the HEATING state and reset the timer for the next reading cycle.
+                sensorCheckTimestamp = get_sys_tick(); 
                 controlState = HEATING;
             }
             break;
     }
-	
-//  // checks if tip is present or currently inserted
-//  if (ShowTemp > 500) // tip removed ?
-//	{
-//		TipIsPresent = false;
-//	}		
-//  if (!TipIsPresent && (ShowTemp < 500)) 			// new tip inserted ?
-//	{
-//    LL_TIM_OC_SetCompareCH1(TIM3, 0);     // shut off heater
-//    beep();                                   // beep for info
-//    TipIsPresent = true;                      // tip is present now
-//    ChangeTipScreen();                        // show tip selection screen
-//    updateEEPROM();                           // update setting in EEPROM
-//    handleMoved = true;                       // reset all timers
-//    RawTemp = denoiseAnalog(LL_ADC_CHANNEL_10);     // restart temp smooth algorithm
-//    c0 = 0;                                 // switch must be released
-//    setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);  // reset rotary encoder
-//  }
 }
 
 // calculates real temperature value according to ADC reading and calibration values
@@ -705,273 +720,281 @@ void calculateTemp(void)
   if      (RawTemp < 1212) CurrentTemp = map(RawTemp, 0, 1212, 21, CalTemp[CurrentTip][0]);
   else if (RawTemp < 1696) CurrentTemp = map(RawTemp, 1212, 1696, CalTemp[CurrentTip][0], CalTemp[CurrentTip][1]);
   else CurrentTemp = map(RawTemp, 1696, 2181, CalTemp[CurrentTip][1], CalTemp[CurrentTip][2]);
+	
+	SEGGER_RTT_printf(0, "%d\r\n", (uint16_t)CurrentTemp);
 }
 
 // controls the heater
 void Thermostat(void)
 {
-  // define Setpoint acoording to current working mode
-  if      (inOffMode)   Setpoint = 0;
-  else if (inSleepMode) Setpoint = SleepTemp;
-  else if (inBoostMode) Setpoint = SetTemp + BoostTemp;
-  else                  Setpoint = SetTemp; 
+    // The state machine controls WHEN to compute the new power output.
+    switch(thermoState)
+    {
+        case THERMO_COMPUTE:
+            // Step 1: Determine Setpoint according to the current working mode
+            if      (inOffMode)   Setpoint = 0;
+            else if (inSleepMode) Setpoint = SleepTemp;
+            else if (inBoostMode) Setpoint = SetTemp + BoostTemp;
+            else                  Setpoint = SetTemp; 
 
-  // control the heater (PID or direct)
-  gap = fabs(Setpoint - CurrentTemp);
-  if (PIDenable) {
-    Input = CurrentTemp;
-    if (gap < 30)
-		{
-			PID_SetTunings(&TPID, consKp, consKi, consKd);
-		}
-    else 
-		{
-			PID_SetTunings(&TPID, aggKp, aggKi, aggKd);
-		}
-    PID_Compute(&TPID);
-  } 
-	else 
-	{
-    // turn on heater if current temperature is below setpoint
-    if ((CurrentTemp + 0.5) < Setpoint)
-		{
-			Output = 0;
-		}
-		else
-		{
-			Output = 1999;
-		}
-  }
-	LL_TIM_OC_SetCompareCH1(TIM3, Output);
+            // Step 2: Control the heater (PID or direct)
+						Input = CurrentTemp;
+            gap = fabs(Setpoint - CurrentTemp);
+            PID_Compute(&TPID); // Calculate the new 'Output' value
+                // Use different PID tunings for aggressive and conservative heating
+                //if (gap < 30)
+                //{
+                    //PID_SetTunings(&TPID, consKp, consKi, consKd);
+                //}
+                //else 
+                //{
+                    //PID_SetTunings(&TPID, aggKp, aggKi, aggKd);
+                //}
+                
+            
+            // Step 3: Calculation is done, record timestamp and switch to wait state
+            thermoTimestamp = get_sys_tick();
+            thermoState = THERMO_WAIT;
+            break;
+
+        case THERMO_WAIT:
+            // Step 4: Wait until the control period has passed
+            if (get_sys_tick() - thermoTimestamp >= THERMOSTAT_PERIOD_MS)
+            {
+                // Time is up, switch back to compute state for the next cycle
+                thermoState = THERMO_COMPUTE;
+            }
+            break;
+    }
 }
 
 // check state and flip screen
 void SetFlip(void) 
 {
-	u8g2_SetFlipMode(&u8g2, BodyFlip);
+	//u8g2_SetFlipMode(&u8g2, BodyFlip);
 }
 
 void SetupScreen(void)
 {
-	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
-	beep();
-	uint16_t SaveSetTemp = SetTemp;
-	uint8_t selection = 0;
-	bool repeat = true;
-	
-  while (repeat) 
-	{
-    selection = MenuScreen(SetupItems, 11, selection);
-    switch (selection) 
-		{
-      case 0:   TipScreen(); repeat = false; break;
-      case 1:   TempScreen(); break;
-      case 2:   TimerScreen(); break;
-      case 3:   PIDenable = MenuScreen(ControlTypeItems, 3, PIDenable); break;
-      case 4:   MainScrType = MenuScreen(MainScreenItems, 3, MainScrType); break;
-      case 5:   beepEnable = MenuScreen(BuzzerItems, 3, beepEnable); break;
-      case 6:   BodyFlip = MenuScreen(FlipItems, 3, BodyFlip); SetFlip(); break;
-      case 7:   ECReverse = MenuScreen(ECReverseItems, 3, ECReverse); break;
-      case 8:   InfoScreen(); break;
-      default:  repeat = false; break;
-    }
-  }
-	updateEEPROM();
-	handleMoved = true;
-	SetTemp = SaveSetTemp;
-	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);
+//	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
+//	beep();
+//	uint16_t SaveSetTemp = SetTemp;
+//	uint8_t selection = 0;
+//	bool repeat = true;
+//	
+//  while (repeat) 
+//	{
+//    selection = MenuScreen(SetupItems, 11, selection);
+//    switch (selection) 
+//		{
+//      case 0:   TipScreen(); repeat = false; break;
+//      case 1:   TempScreen(); break;
+//      case 2:   TimerScreen(); break;
+//      case 3:   PIDenable = MenuScreen(ControlTypeItems, 3, PIDenable); break;
+//      case 4:   MainScrType = MenuScreen(MainScreenItems, 3, MainScrType); break;
+//      case 5:   beepEnable = MenuScreen(BuzzerItems, 3, beepEnable); break;
+//      case 6:   BodyFlip = MenuScreen(FlipItems, 3, BodyFlip); SetFlip(); break;
+//      case 7:   ECReverse = MenuScreen(ECReverseItems, 3, ECReverse); break;
+//      case 8:   InfoScreen(); break;
+//      default:  repeat = false; break;
+//    }
+//  }
+//	updateEEPROM();
+//	handleMoved = true;
+//	SetTemp = SaveSetTemp;
+//	setRotary(TEMP_MIN, TEMP_MAX, TEMP_STEP, SetTemp);
 }
 
 // tip settings screen
 void TipScreen(void)
 {
-  uint8_t selection = 0;
-  bool repeat = true;  
-  while (repeat) 
-	{
-    selection = MenuScreen(TipItems, 7, selection);
-    switch (selection) 
-		{
-      case 0:
-				ChangeTipScreen();
-				break;
-      case 1:
-				CalibrationScreen();
-				break;
-      case 2:
-				InputNameScreen();
-				break;
-      case 3:
-				DeleteTipScreen();
-				break;
-      case 4:
-				AddTipScreen();
-				break;
-      default:
-				repeat = false;
-				break;
-    }
-  }
+//  uint8_t selection = 0;
+//  bool repeat = true;  
+//  while (repeat) 
+//	{
+//    selection = MenuScreen(TipItems, 7, selection);
+//    switch (selection) 
+//		{
+//      case 0:
+//				ChangeTipScreen();
+//				break;
+//      case 1:
+//				CalibrationScreen();
+//				break;
+//      case 2:
+//				InputNameScreen();
+//				break;
+//      case 3:
+//				DeleteTipScreen();
+//				break;
+//      case 4:
+//				AddTipScreen();
+//				break;
+//      default:
+//				repeat = false;
+//				break;
+//    }
+//  }
 }
 
 // change tip screen
 void ChangeTipScreen(void)
 {
-  uint8_t selected = CurrentTip;
-  uint8_t lastselected = selected;
-  int8_t  arrow = 0;
-  if (selected)
-  {
-    arrow = 1;
-  }
-  setRotary(0, NumberOfTips - 1, 1, selected);
-  bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+//  uint8_t selected = CurrentTip;
+//  uint8_t lastselected = selected;
+//  int8_t  arrow = 0;
+//  if (selected)
+//  {
+//    arrow = 1;
+//  }
+//  setRotary(0, NumberOfTips - 1, 1, selected);
+//  bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
 
-  do 
-  {
-    selected = getRotary();
-    arrow = constrain(arrow + selected - lastselected, 0, 2);
-    lastselected = selected;
-    u8g2_FirstPage(&u8g2);
-    do
-    {
-        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
-        u8g2_DrawStr(&u8g2, 0, 10, "Select Tip");
-        u8g2_DrawStr(&u8g2, 0, 10+16 * (arrow + 1), ">");
-        for (uint8_t i=0; i<3; i++)
-        {
-          uint8_t drawnumber = selected + i - arrow;
-          if (drawnumber < NumberOfTips)
-          {
-            u8g2_DrawStr(&u8g2, 12, 10+16 * (i + 1), TipName[selected + i - arrow]);
-          }
-        }
-      } while(u8g2_NextPage(&u8g2));
-    if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0))
-    {
-      LL_mDelay(10); 
-      lastbutton = false;
-    }
-  } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+//  do 
+//  {
+//    selected = getRotary();
+//    arrow = constrain(arrow + selected - lastselected, 0, 2);
+//    lastselected = selected;
+//    u8g2_FirstPage(&u8g2);
+//    do
+//    {
+//        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+//        u8g2_DrawStr(&u8g2, 0, 10, "Select Tip");
+//        u8g2_DrawStr(&u8g2, 0, 10+16 * (arrow + 1), ">");
+//        for (uint8_t i=0; i<3; i++)
+//        {
+//          uint8_t drawnumber = selected + i - arrow;
+//          if (drawnumber < NumberOfTips)
+//          {
+//            u8g2_DrawStr(&u8g2, 12, 10+16 * (i + 1), TipName[selected + i - arrow]);
+//          }
+//        }
+//      } while(u8g2_NextPage(&u8g2));
+//    if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0))
+//    {
+//      LL_mDelay(10); 
+//      lastbutton = false;
+//    }
+//  } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
 
-  beep();
-  CurrentTip = selected;
+//  beep();
+//  CurrentTip = selected;
 }
 
 // temperature calibration screen
 void CalibrationScreen(void) 
 {
-  uint16_t CalTempNew[4]; 
-	char sprintf_tmp[16] = {0};
-	
-  for (uint8_t CalStep = 0; CalStep < 3; CalStep++) 
-	{
-    SetTemp = CalTemp[CurrentTip][CalStep];
-    setRotary(100, 500, 1, SetTemp);
-    beepIfWorky = true;
-    bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+//  uint16_t CalTempNew[4]; 
+//	char sprintf_tmp[16] = {0};
+//	
+//  for (uint8_t CalStep = 0; CalStep < 3; CalStep++) 
+//	{
+//    SetTemp = CalTemp[CurrentTip][CalStep];
+//    setRotary(100, 500, 1, SetTemp);
+//    beepIfWorky = true;
+//    bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
 
-    do 
-		{
-      SENSORCheck();      // reads temperature and vibration switch of the iron
-      Thermostat();       // heater control
-      
-      u8g2_FirstPage(&u8g2);
-      do 
-			{
-        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
-        u8g2_DrawStr(&u8g2, 0, 10, "Calibration");
-				sprintf(sprintf_tmp, "Step: %d of 3", CalStep + 1);
-				u8g2_DrawStr(&u8g2, 0, 26, sprintf_tmp); 
-        if (isWorky)
-				{
-					u8g2_DrawStr(&u8g2, 0, 42, "Set measured");
-					sprintf(sprintf_tmp, "temp: %d", getRotary());
-					u8g2_DrawStr(&u8g2, 0, 58, sprintf_tmp); 
-        }
-				else 
-				{
-					sprintf(sprintf_tmp, "ADC: %d", (uint16_t)RawTemp);
-					u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp); 
-					u8g2_DrawStr(&u8g2, 0, 58, "Please wait...");
-        }
-      } while(u8g2_NextPage(&u8g2));
-			if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
-			{
-				LL_mDelay(10);
-				lastbutton = false;
-			}
-    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+//    do 
+//		{
+//      SENSORCheck();      // reads temperature and vibration switch of the iron
+//      Thermostat();       // heater control
+//      
+//      u8g2_FirstPage(&u8g2);
+//      do 
+//			{
+//        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+//        u8g2_DrawStr(&u8g2, 0, 10, "Calibration");
+//				sprintf(sprintf_tmp, "Step: %d of 3", CalStep + 1);
+//				u8g2_DrawStr(&u8g2, 0, 26, sprintf_tmp); 
+//        if (isWorky)
+//				{
+//					u8g2_DrawStr(&u8g2, 0, 42, "Set measured");
+//					sprintf(sprintf_tmp, "temp: %d", getRotary());
+//					u8g2_DrawStr(&u8g2, 0, 58, sprintf_tmp); 
+//        }
+//				else 
+//				{
+//					sprintf(sprintf_tmp, "ADC: %d", (uint16_t)RawTemp);
+//					u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp); 
+//					u8g2_DrawStr(&u8g2, 0, 58, "Please wait...");
+//        }
+//      } while(u8g2_NextPage(&u8g2));
+//			if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+//			{
+//				LL_mDelay(10);
+//				lastbutton = false;
+//			}
+//    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
 
-		CalTempNew[CalStep] = getRotary();
-		beep(); 
-		LL_mDelay(10);
-  }
+//		CalTempNew[CalStep] = getRotary();
+//		beep(); 
+//		LL_mDelay(10);
+//  }
 
-	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
-  LL_mDelay(2); // wait for voltage to settle
-  CalTempNew[3] = TMP75_ReadTemp(); // read temperature from TMP75
-	
-  if ((CalTempNew[0] + 10 < CalTempNew[1]) && (CalTempNew[1] + 10 < CalTempNew[2])) 
-	{
-    if (MenuScreen(StoreItems, 3, 0))
-		{
-      for (uint8_t i = 0; i < 4; i++) 
-			{
-				CalTemp[CurrentTip][i] = CalTempNew[i];
-			}
-    }
-  }
+//	LL_TIM_OC_SetCompareCH1(TIM3, 0); // shut off heater
+//  LL_mDelay(2); // wait for voltage to settle
+//  CalTempNew[3] = TMP75_ReadTemp(); // read temperature from TMP75
+//	
+//  if ((CalTempNew[0] + 10 < CalTempNew[1]) && (CalTempNew[1] + 10 < CalTempNew[2])) 
+//	{
+//    if (MenuScreen(StoreItems, 3, 0))
+//		{
+//      for (uint8_t i = 0; i < 4; i++) 
+//			{
+//				CalTemp[CurrentTip][i] = CalTempNew[i];
+//			}
+//    }
+//  }
 }
 
 // input tip name screen
 void InputNameScreen(void) 
 {
-  uint8_t value, i;
-  char sprintf_tmp[6] = {0};
-  
-  for (uint8_t digit = 0; digit < (TIPNAMELENGTH - 1); digit++) 
-  {
-    bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
-    setRotary(31, 96, 1, 65);
-    do
-    {
-      value = getRotary();
-      if (value == 31)
-      {
-        value = 95;
-        setRotary(31, 96, 1, 95);
-      }
-      else if (value == 96) 
-      {
-        value = 32; 
-        setRotary(31, 96, 1, 32);
-      }
-      u8g2_FirstPage(&u8g2);
-      do 
-      {
-        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
-        u8g2_DrawStr(&u8g2, 0, 10, "Enter Tip Name");
-        u8g2_DrawStr(&u8g2, 9 * digit, 58, "^");
-        for (uint8_t i = 0; i < digit; i++) 
-        {
-          sprintf_tmp[i] = TipName[CurrentTip][i];
-        }
-        sprintf_tmp[digit] = value;
-        u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp);
-      } while(u8g2_NextPage(&u8g2));
-      if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
-      {
-        LL_mDelay(10);
-        lastbutton = false;
-      }
-    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
-    TipName[CurrentTip][digit] = value;
-    beep();
-    LL_mDelay(10);
-  }
-  TipName[CurrentTip][TIPNAMELENGTH - 1] = 0;
-  return;
+//  uint8_t value, i;
+//  char sprintf_tmp[6] = {0};
+//  
+//  for (uint8_t digit = 0; digit < (TIPNAMELENGTH - 1); digit++) 
+//  {
+//    bool lastbutton = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) ? 0 : 1;
+//    setRotary(31, 96, 1, 65);
+//    do
+//    {
+//      value = getRotary();
+//      if (value == 31)
+//      {
+//        value = 95;
+//        setRotary(31, 96, 1, 95);
+//      }
+//      else if (value == 96) 
+//      {
+//        value = 32; 
+//        setRotary(31, 96, 1, 32);
+//      }
+//      u8g2_FirstPage(&u8g2);
+//      do 
+//      {
+//        u8g2_SetFont(&u8g2, u8g2_font_9x15_tr);
+//        u8g2_DrawStr(&u8g2, 0, 10, "Enter Tip Name");
+//        u8g2_DrawStr(&u8g2, 9 * digit, 58, "^");
+//        for (uint8_t i = 0; i < digit; i++) 
+//        {
+//          sprintf_tmp[i] = TipName[CurrentTip][i];
+//        }
+//        sprintf_tmp[digit] = value;
+//        u8g2_DrawStr(&u8g2, 0, 42, sprintf_tmp);
+//      } while(u8g2_NextPage(&u8g2));
+//      if (lastbutton && LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0)) 
+//      {
+//        LL_mDelay(10);
+//        lastbutton = false;
+//      }
+//    } while (LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_0) || lastbutton);
+//    TipName[CurrentTip][digit] = value;
+//    beep();
+//    LL_mDelay(10);
+//  }
+//  TipName[CurrentTip][TIPNAMELENGTH - 1] = 0;
+//  return;
 }
 
 // add new tip screen
@@ -1258,70 +1281,70 @@ uint16_t getRotary(void)
 // reads user settings from EEPROM; if EEPROM values are invalid, write defaults
 void getEEPROM(void)
 {
-	//memset(&Param_A, 0, sizeof(Param_A));
-	//memset(&Param_B, 0, sizeof(Param_B));
-	memcpy(&Param_A, (const void*)SYSTEM_ARG_STORE_START_ADDR, sizeof(Param_A));
-	memcpy(&Param_B, (const void*)(SYSTEM_ARG_STORE_START_ADDR+2048), sizeof(Param_B));
-	if (Param_A.identifier == EEPROM_IDENT && Param_B.identifier == EEPROM_IDENT)
-	{
-		printf("Param_A&B check ok!\n");
-		DefaultTemp = Param_A.DefaultTemp;
-		SleepTemp = Param_A.SleepTemp;
-		BoostTemp = Param_A.BoostTemp;
-		time2sleep = Param_A.time2sleep;
-		time2off = Param_B.time2off;
-		timeOfBoost = Param_B.timeOfBoost;
-		SleepTemp = Param_B.SleepTemp;
-		MainScrType = Param_B.MainScrType;
-		beepEnable = Param_B.beepEnable;
-		BodyFlip = Param_B.BodyFlip;
-		ECReverse = Param_B.ECReverse;
-	}
-	else
-	{
-		printf("Param_A&B check fail!\n");
-		updateEEPROM();
-	}
+//	//memset(&Param_A, 0, sizeof(Param_A));
+//	//memset(&Param_B, 0, sizeof(Param_B));
+//	memcpy(&Param_A, (const void*)SYSTEM_ARG_STORE_START_ADDR, sizeof(Param_A));
+//	memcpy(&Param_B, (const void*)(SYSTEM_ARG_STORE_START_ADDR+2048), sizeof(Param_B));
+//	if (Param_A.identifier == EEPROM_IDENT && Param_B.identifier == EEPROM_IDENT)
+//	{
+//		printf("Param_A&B check ok!\n");
+//		DefaultTemp = Param_A.DefaultTemp;
+//		SleepTemp = Param_A.SleepTemp;
+//		BoostTemp = Param_A.BoostTemp;
+//		time2sleep = Param_A.time2sleep;
+//		time2off = Param_B.time2off;
+//		timeOfBoost = Param_B.timeOfBoost;
+//		SleepTemp = Param_B.SleepTemp;
+//		MainScrType = Param_B.MainScrType;
+//		beepEnable = Param_B.beepEnable;
+//		BodyFlip = Param_B.BodyFlip;
+//		ECReverse = Param_B.ECReverse;
+//	}
+//	else
+//	{
+//		printf("Param_A&B check fail!\n");
+//		updateEEPROM();
+//	}
 }
 
 // writes user settings to EEPROM using updade function to minimize write cycles
 void updateEEPROM(void)
 {
-	Param_A.identifier = EEPROM_IDENT;
-	Param_A.DefaultTemp = DefaultTemp;
-	Param_A.SleepTemp = SleepTemp;
-	Param_A.BoostTemp = BoostTemp;
-	Param_A.time2sleep = time2sleep;
+//	Param_A.identifier = EEPROM_IDENT;
+//	Param_A.DefaultTemp = DefaultTemp;
+//	Param_A.SleepTemp = SleepTemp;
+//	Param_A.BoostTemp = BoostTemp;
+//	Param_A.time2sleep = time2sleep;
 
-	Param_B.identifier = EEPROM_IDENT;
-	Param_B.time2off = time2off;
-	Param_B.timeOfBoost = timeOfBoost;
-	Param_B.SleepTemp = SleepTemp;
-	Param_B.MainScrType = MainScrType;
-	Param_B.beepEnable = beepEnable;
-	Param_B.BodyFlip = BodyFlip;
-	Param_B.ECReverse = ECReverse;
-	
-	uint16_t len;
-	len = XMEM_ALIGN_SIZE(sizeof(Param_A), 8);
-	if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&Param_A, len) != 0x00U)
-	{
-		printf("Save Param_A failed!\n");
-	}
-	else
-	{
-		printf("Save Param_A OK!\n");
-	}
-	
-	if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR+2048, (uint64_t *)&Param_B, len) != 0x00U)
-	{
-		printf("Save Param_B failed!\n");
-	}
-	else
-	{
-		
-		printf("Save Param_B OK!\n");
-	}
+//	Param_B.identifier = EEPROM_IDENT;
+//	Param_B.time2off = time2off;
+//	Param_B.timeOfBoost = timeOfBoost;
+//	Param_B.SleepTemp = SleepTemp;
+//	Param_B.MainScrType = MainScrType;
+//	Param_B.beepEnable = beepEnable;
+//	Param_B.BodyFlip = BodyFlip;
+//	Param_B.ECReverse = ECReverse;
+//	
+//	uint16_t len;
+//	len = XMEM_ALIGN_SIZE(sizeof(Param_A), 8);
+//	if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR, (uint64_t *)&Param_A, len) != 0x00U)
+//	{
+//		printf("Save Param_A failed!\n");
+//	}
+//	else
+//	{
+//		printf("Save Param_A OK!\n");
+//	}
+//	
+//	if(ubFlash_Write_DoubleWord(SYSTEM_ARG_STORE_START_ADDR+2048, (uint64_t *)&Param_B, len) != 0x00U)
+//	{
+//		printf("Save Param_B failed!\n");
+//	}
+//	else
+//	{
+//		
+//		printf("Save Param_B OK!\n");
+//	}
 }
 
 uint16_t map(uint16_t x, uint16_t in_min, uint16_t in_max, uint16_t out_min, uint16_t out_max)
