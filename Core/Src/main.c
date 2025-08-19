@@ -87,7 +87,7 @@ SystemParam_A Param_A = {0};
 SystemParam_B Param_B = {0};
 
 // Define the aggressive and conservative PID tuning parameters
-double aggKp=11, aggKi=0., aggKd=0;
+double aggKp=11, aggKi=0.5, aggKd=1;
 double consKp=11, consKi=0, consKd=0; 
 
 // Default values that can be changed by the user and stored in the EEPROM
