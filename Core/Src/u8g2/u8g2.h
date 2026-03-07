@@ -94,7 +94,7 @@
   HVLine procedures are also used by the text drawing functions.
 */
 #ifndef U8G2_WITHOUT_HVLINE_SPEED_OPTIMIZATION
-#define U8G2_WITH_HVLINE_SPEED_OPTIMIZATION
+//#define U8G2_WITH_HVLINE_SPEED_OPTIMIZATION
 #endif
 
 /*
@@ -105,7 +105,7 @@
   macro can be commented to reduce code size.
 */
 #ifndef U8G2_WITHOUT_INTERSECTION
-#define U8G2_WITH_INTERSECTION
+//#define U8G2_WITH_INTERSECTION
 #endif
 
 
@@ -117,7 +117,7 @@
   Clip window support requires about 200 bytes flash memory on AVR systems
 */
 #ifndef U8G2_WITHOUT_CLIP_WINDOW_SUPPORT
-#define U8G2_WITH_CLIP_WINDOW_SUPPORT
+//#define U8G2_WITH_CLIP_WINDOW_SUPPORT
 #endif
 
 /*
@@ -127,7 +127,7 @@
   Jan 2020: Disabling this macro will save up to 600 bytes on AVR 
 */
 #ifndef U8G2_WITHOUT_FONT_ROTATION
-#define U8G2_WITH_FONT_ROTATION
+//#define U8G2_WITH_FONT_ROTATION
 #endif
 
 /*

@@ -53,32 +53,31 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
-// 系统配置结构体 (保存到 EEPROM/Flash)
+// 2. 运行时状态结构体 (易失数据)
 typedef struct {
-    uint16_t defaultTemp;
-    uint16_t sleepTemp;
-    uint16_t boostTemp;
-
-    uint16_t time2sleep;
-    uint16_t time2off;
-    uint16_t timeOfBoost;
-
-    // 采用位域压缩的标志位，仅占用 1 Byte
-    union {
-        uint8_t allFlags;
-        struct {
-            uint8_t buzzerEnabled   : 1;
-            uint8_t screenFlipped   : 1;
-            uint8_t encoderReversed : 1;
-            uint8_t mainScreenType  : 1;
-            uint8_t controlType     : 1; // 0: Direct, 1: PID
-            uint8_t reserved        : 3;
-        };
-    } flags;
-
-    uint8_t currentTip;
-    uint8_t numberOfTips;
-} SystemConfig_t;
+    float    currentTemp;    // 实际温度
+    float    rawTemp;        // ADC平滑后的原始值
+    uint16_t setTemp;        // 旋钮设定的基础目标温度
+    double setpoint;         // 实际 PID 目标温度 (含休眠/强化)
+    
+    double   pidInput;       // PID 输入
+    double   pidOutput;      // PID 输出 (PWM值)
+    double   pidGap;         // 温度差值
+    
+    bool     inSleepMode;
+    bool     inOffMode;
+    bool     inBoostMode;
+    
+    bool     isWorky;        // 是否达到工作温度
+    bool     beepIfWorky;    // 达到温度后是否需要蜂鸣
+    bool     handleMoved;    // 手柄是否移动
+    
+    uint32_t sleepMillis;    // 休眠计时起点
+    uint32_t boostMillis;    // 强化计时起点
+		uint32_t beepTurnOffTick;// 蜂鸣器应当关闭的时间戳
+    
+    bool     displayNeedsUpdate;
+} RuntimeState_t;
 
 /* USER CODE END ET */
 

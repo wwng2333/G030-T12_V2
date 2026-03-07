@@ -1,0 +1,29 @@
+# 文件列表 - 用于Keil项目配置
+
+## 需要添加的源文件（.c文件）
+
+### HAL层（6个文件）
+Core/Src/HAL/timer_hal.c
+Core/Src/HAL/adc_hal.c
+Core/Src/HAL/pwm_hal.c
+Core/Src/HAL/encoder_hal.c
+Core/Src/HAL/button_hal.c
+Core/Src/HAL/buzzer_hal.c
+
+### Service层（4个文件）
+Core/Src/Service/config_service.c
+Core/Src/Service/temp_control.c
+Core/Src/Service/power_mgmt.c
+Core/Src/Service/ui_service.c
+
+### App层（1个文件）
+Core/Src/app_state_machine.c
+
+## 需要添加的头文件路径
+
+Core/Inc/HAL
+Core/Inc/Service
+
+## 总计
+- 源文件: 11个
+- 头文件路径: 2个

@@ -150,8 +150,8 @@ void MX_GPIO_Init(void)
   LL_GPIO_SetPinMode(GPIOA, LL_GPIO_PIN_0, LL_GPIO_MODE_INPUT);
 
   /* EXTI interrupt init*/
-  NVIC_SetPriority(EXTI4_15_IRQn, 3);
-  NVIC_EnableIRQ(EXTI4_15_IRQn);
+  //NVIC_SetPriority(EXTI4_15_IRQn, 3);
+  //NVIC_EnableIRQ(EXTI4_15_IRQn);
 
 }
 

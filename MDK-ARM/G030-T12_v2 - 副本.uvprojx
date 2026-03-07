@@ -10,15 +10,14 @@
       <TargetName>G030-T12_v2</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
-      <pArmCC>6210000::V6.21::ARMCLANG</pArmCC>
-      <pCCUsed>6210000::V6.21::ARMCLANG</pCCUsed>
+      <pCCUsed>6240000::V6.24::ARMCLANG</pCCUsed>
       <uAC6>1</uAC6>
       <TargetOption>
         <TargetCommonOption>
           <Device>STM32G030K6Tx</Device>
           <Vendor>STMicroelectronics</Vendor>
-          <PackID>Keil.STM32G0xx_DFP.1.5.0</PackID>
-          <PackURL>https://www.keil.com/pack/</PackURL>
+          <PackID>Keil.STM32G0xx_DFP.1.4.0</PackID>
+          <PackURL>http://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000-0x20001FFF) IROM(0x8000000-0x8007FFF)  CLOCK(8000000) CPUTYPE("Cortex-M0+") TZ</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
@@ -315,7 +314,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>2</Optim>
+            <Optim>1</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -341,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_FULL_LL_DRIVER,STM32G030xx,HSE_VALUE=8000000,HSE_STARTUP_TIMEOUT=100,LSE_STARTUP_TIMEOUT=5000,LSE_VALUE=32768,EXTERNAL_CLOCK_VALUE=12288000,HSI_VALUE=16000000,LSI_VALUE=32000,VDD_VALUE=3300,PREFETCH_ENABLE=1,INSTRUCTION_CACHE_ENABLE=1,DATA_CACHE_ENABLE=1</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32G0xx_HAL_Driver/Inc;../Drivers/CMSIS/Device/ST/STM32G0xx/Include;../Drivers/CMSIS/Include;../Core/Src/u8g2</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32G0xx_HAL_Driver/Inc;../Drivers/CMSIS/Device/ST/STM32G0xx/Include;../Drivers/CMSIS/Include;../Core/Src/u8g2;..\Core\Inc\HAL;..\Core\Inc\Service</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -396,16 +395,6 @@
           <GroupName>Application/User/Core</GroupName>
           <Files>
             <File>
-              <FileName>SEGGER_RTT.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\SEGGER_RTT.c</FilePath>
-            </File>
-            <File>
-              <FileName>SEGGER_RTT_printf.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\SEGGER_RTT_printf.c</FilePath>
-            </File>
-            <File>
               <FileName>oled_driver.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\oled_driver.c</FilePath>
@@ -419,16 +408,6 @@
               <FileName>PID.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\PID.c</FilePath>
-            </File>
-            <File>
-              <FileName>Flash.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\Flash.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32_button.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\stm32_button.c</FilePath>
             </File>
             <File>
               <FileName>main.c</FileName>
@@ -461,9 +440,9 @@
               <FilePath>../Core/Src/stm32g0xx_it.c</FilePath>
             </File>
             <File>
-              <FileName>timer.c</FileName>
+              <FileName>app_state_machine.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Core\Src\timer.c</FilePath>
+              <FilePath>..\Core\Src\app_state_machine.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -814,6 +793,66 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>Application/User/Core/HAL</GroupName>
+          <Files>
+            <File>
+              <FileName>adc_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\adc_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>button_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\button_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>buzzer_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\buzzer_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>encoder_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\encoder_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>pwm_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\pwm_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>timer_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\timer_hal.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Application/User/Core/Service</GroupName>
+          <Files>
+            <File>
+              <FileName>config_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\Service\config_service.c</FilePath>
+            </File>
+            <File>
+              <FileName>power_mgmt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\Service\power_mgmt.c</FilePath>
+            </File>
+            <File>
+              <FileName>temp_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\Service\temp_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\Service\ui_service.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>::CMSIS</GroupName>
         </Group>
         <Group>
@@ -860,5 +899,14 @@
       </file>
     </files>
   </RTE>
+
+  <LayerInfo>
+    <Layers>
+      <Layer>
+        <LayName>G030-T12_v2 - 副本</LayName>
+        <LayPrjMark>1</LayPrjMark>
+      </Layer>
+    </Layers>
+  </LayerInfo>
 
 </Project>
