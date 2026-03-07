@@ -20,6 +20,11 @@ extern "C" {
 #define UI_DISPLAY_UPDATE_PERIOD_MS    50
 #define UI_TMP75_READ_PERIOD_MS        500
 
+#define BAR_X          0        // 屏幕左侧起始位置
+#define BAR_Y          58       // 屏幕底部起始位置 (假设高度64, 58+5=63)
+#define BAR_MAX_W      50       // 进度条总宽度
+#define BAR_H          5        // 进度条高度
+
 /* 导出的类型 --------------------------------------------------------*/
 typedef enum {
     UI_EVENT_NONE = 0,

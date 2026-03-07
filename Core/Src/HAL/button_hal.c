@@ -20,6 +20,7 @@ typedef enum {
 /* 私有变量 ----------------------------------------------------------*/
 static ButtonState_e s_buttonState = BTN_STATE_RELEASED;
 static uint32_t s_buttonPressTimestamp = 0;
+static uint8_t s_lastVibeState = 1;
 
 /* 导出的函数 --------------------------------------------------------*/
 
@@ -31,6 +32,33 @@ void Button_HAL_Init(void)
     // GPIO已经在MX_GPIO_Init()中初始化
     s_buttonState = BTN_STATE_RELEASED;
     s_buttonPressTimestamp = 0;
+}
+
+/**
+ * @brief  初始化振动传感器(滚珠开关) HAL
+ */
+void Vibration_HAL_Init(void)
+{
+    // 初始化时读取一次 PA11 初始状态
+    s_lastVibeState = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_11);
+}
+
+/**
+ * @brief  扫描振动传感器状态 (纯硬件逻辑)
+ * @retval true=检测到振动(状态跳变), false=无振动
+ */
+bool Vibration_HAL_Scan(void)
+{
+    bool has_moved = false;
+    uint8_t current_state = LL_GPIO_IsInputPinSet(GPIOA, LL_GPIO_PIN_11);
+    
+    // 如果电平发生翻转，说明滚珠发生了移动
+    if (current_state != s_lastVibeState) {
+        has_moved = true;
+        s_lastVibeState = current_state;
+    }
+    
+    return has_moved;
 }
 
 /**
@@ -48,7 +76,7 @@ bool Button_HAL_IsPressed(void)
  * @retval 按键事件
  */
 ButtonEvent_e Button_HAL_Scan(void)
-{
+{	
     ButtonEvent_e event = BUTTON_EVENT_NONE;
     bool is_pressed = Button_HAL_IsPressed();
     uint32_t current_tick = Timer_HAL_GetTick();

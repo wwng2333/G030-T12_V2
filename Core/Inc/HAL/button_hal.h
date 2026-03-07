@@ -34,6 +34,16 @@ typedef enum {
 void Button_HAL_Init(void);
 
 /**
+ * @brief  初始化振动传感器(滚珠开关) HAL
+ */
+void Vibration_HAL_Init(void);
+
+/**
+ * @brief  读取滚珠开关原始状态 (PA11)
+ */
+bool Vibration_HAL_Scan(void);
+
+/**
  * @brief  读取按键原始状态
  * @retval true=按下, false=释放
  */

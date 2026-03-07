@@ -43,7 +43,6 @@ static u8g2_t s_u8g2;
 
 // 外部变量
 extern uint16_t Vin;
-extern volatile uint8_t d0;
 
 /* 私有函数声明 ----------------------------------------------------*/
 static void UIService_ProcessEncoderInternal(void);
@@ -331,8 +330,8 @@ void UIService_DisplayMainScreen(void)
         // 区分不同显示模式
         if (config->flags.mainScreenType) {
             // 详细信息模式
-            if (d0) {
-                u8g2_DrawStr(&s_u8g2, 52, 62, ".");
+            if (PowerMgmt_HasHandleMoved()) {
+							u8g2_DrawStr(&s_u8g2, 52, 62, "."); // 提示手柄移动
             }
 
             sprintf(sprintf_tmp, "%d%%", pwm_percent);
@@ -346,9 +345,19 @@ void UIService_DisplayMainScreen(void)
             sprintf(sprintf_tmp, "%.1fC", cached_tmp75_temp);
             u8g2_DrawStr(&s_u8g2, 83, 45, sprintf_tmp);
 
-            u8g2_DrawStr(&s_u8g2, 0, 62, "T12");
-            sprintf(sprintf_tmp, "%.1fV", (float)Vin * 0.001);
-            u8g2_DrawStr(&s_u8g2, 83, 62, sprintf_tmp);
+						u8g2_DrawFrame(&s_u8g2, BAR_X, BAR_Y, BAR_MAX_W, BAR_H);
+						uint8_t bar_width = (pwm_percent * (BAR_MAX_W - 2)) / 100;
+						if (bar_width > 0) {
+								u8g2_DrawBox(&s_u8g2, BAR_X + 1, BAR_Y + 1, bar_width, BAR_H - 2); // x+1 和 y+1 是为了让填充部分位于边框内部，不重叠
+						}
+            
+						sprintf(sprintf_tmp, "%.1fV", (float)Vin * 0.001);
+						if(Vin < 10000) {
+							// 输入电压10V内
+							u8g2_DrawStr(&s_u8g2, 92, 62, sprintf_tmp);
+						} else {
+							u8g2_DrawStr(&s_u8g2, 83, 62, sprintf_tmp);
+						}
 
             u8g2_SetFont(&s_u8g2, u8g2_font_freedoomr25_tn);
             if (tempState->currentTemp > 500) {
@@ -359,6 +368,9 @@ void UIService_DisplayMainScreen(void)
             }
         } else {
             // 大字模式(带进度条)
+						if (PowerMgmt_HasHandleMoved()) {
+							u8g2_DrawStr(&s_u8g2, 120, 62, "."); // 提示手柄移动
+            }
             u8g2_DrawFrame(&s_u8g2, 0, 16, 5, 48);
             uint8_t bar_height = (pwm_percent * 46) / 100;
             if (bar_height > 0) {

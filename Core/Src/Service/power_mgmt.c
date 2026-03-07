@@ -9,6 +9,7 @@
 #include "config_service.h"
 #include "timer_hal.h"
 #include "buzzer_hal.h"
+#include "button_hal.h"
 
 /* 私有变量 ----------------------------------------------------------*/
 static PowerMgmtState_t s_powerState = {
@@ -19,6 +20,8 @@ static PowerMgmtState_t s_powerState = {
     .sleepMillis = 0,
     .boostMillis = 0
 };
+
+static uint32_t s_lastMoveDisplayTick = 0;
 
 /* 导出的函数 --------------------------------------------------------*/
 
@@ -43,6 +46,12 @@ void PowerMgmt_Task(void)
     SystemConfig_t* config = ConfigService_GetConfig();
     uint32_t current_tick = Timer_HAL_GetTick();
 
+		// 0. 轮询底层硬件：检查手柄是否移动
+    if (Vibration_HAL_Scan()) {
+        s_powerState.handleMoved = true;
+				s_lastMoveDisplayTick = Timer_HAL_GetTick(); // 记录跳变时间供 UI 使用
+    }
+	
     // 1. 处理手柄移动事件(唤醒)
     if (s_powerState.handleMoved) {
         if (s_powerState.inSleepMode) {
@@ -170,4 +179,17 @@ bool PowerMgmt_IsInOffMode(void)
 bool PowerMgmt_IsInBoostMode(void)
 {
     return s_powerState.inBoostMode;
+}
+
+/**
+ * @brief  手柄最近是否移动
+ * @retval true=正在移动, false=不在移动
+ */
+bool PowerMgmt_HasHandleMoved(void)
+{
+    // 如果距离上次移动不到 200ms，告诉 UI "正在移动"
+    if (Timer_HAL_GetTick() - s_lastMoveDisplayTick < 200) {
+        return true;
+    }
+    return false;
 }

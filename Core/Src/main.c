@@ -48,7 +48,6 @@
 __IO uint32_t TIM16_Tick = 0;
 uint32_t start_tick, cycle_time;
 uint16_t Vin = 0;
-volatile uint8_t d0 = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/

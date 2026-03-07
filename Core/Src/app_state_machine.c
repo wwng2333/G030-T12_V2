@@ -126,6 +126,7 @@ static void AppStateMachine_BootHandler(void)
     PWM_HAL_Init();
     Encoder_HAL_Init();
     Button_HAL_Init();
+    Vibration_HAL_Init();
     Buzzer_HAL_Init();
 
     // 3. 初始化业务逻辑层

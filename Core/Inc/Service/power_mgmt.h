@@ -99,6 +99,12 @@ bool PowerMgmt_IsInOffMode(void);
  */
 bool PowerMgmt_IsInBoostMode(void);
 
+/**
+ * @brief  手柄最近是否移动
+ * @retval true=正在移动, false=不在移动
+ */
+bool PowerMgmt_HasHandleMoved(void);
+
 #ifdef __cplusplus
 }
 #endif
