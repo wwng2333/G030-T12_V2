@@ -12,6 +12,7 @@
 #include "pwm_hal.h"
 #include "timer_hal.h"
 #include "buzzer_hal.h"
+#include "lm75_hal.h"
 #include "PID.h"
 #include "main.h"
 #include <math.h>
@@ -39,6 +40,12 @@ static TempControlState_t s_tempState = {
 static TempControlPhase_e s_controlPhase = CTRL_HEATING;
 static uint32_t s_lastCycleTick = 0;
 static uint32_t s_offTick = 0;
+
+// 冷端温度补偿
+#define COLD_JUNCTION_CAL_TEMP   21.0f   // 校准时的环境温度(°C)
+#define COLD_JUNCTION_UPDATE_CYC 10      // 每N个控制周期更新一次冷端温度
+static float  s_coldJunctionTemp = COLD_JUNCTION_CAL_TEMP;
+static uint8_t s_coldJunctionCnt = 0;
 
 static IntPID_TypeDef s_TPID;
 
@@ -80,6 +87,8 @@ void TempControl_Init(void)
     IntPID_Init(&s_TPID, s_aggKp, s_aggKi, s_aggKd, 0, PWM_HAL_MAX_DUTY);
 
     // 初始化温度读取
+    LM75_HAL_Init();
+    s_coldJunctionTemp = LM75_HAL_ReadTemp();
     PWM_HAL_HeaterOff();
     Timer_HAL_Delay(2);
     s_tempState.rawTemp = ADC_HAL_ReadTemperature();
@@ -124,6 +133,13 @@ void TempControl_Task(void)
         case CTRL_MEASURE_AND_PID:
             // 1. 低功耗采样与平滑滤波
             s_tempState.rawTemp += (ADC_HAL_ReadTemperature() - s_tempState.rawTemp) * TEMP_SMOOTHIE;
+
+            // 2. 定期更新冷端温度(每N个周期读取一次LM75,冷端变化缓慢无需每次读取)
+            if (++s_coldJunctionCnt >= COLD_JUNCTION_UPDATE_CYC) {
+                s_coldJunctionTemp = LM75_HAL_ReadTemp();
+                s_coldJunctionCnt = 0;
+            }
+
             TempControl_CalculateTemp();
 
             // 2. 确定当前工作模式下的目标温度
@@ -268,6 +284,9 @@ static void TempControl_CalculateTemp(void)
         // 超出范围时使用外推
         s_tempState.currentTemp = s_CalTemp[tipIndex][2] + (rawTemp - 2181) * 0.2f;
     }
+
+    // 冷端温度补偿:加上实际冷端温度与校准基准温度的差值
+    s_tempState.currentTemp += (s_coldJunctionTemp - COLD_JUNCTION_CAL_TEMP);
 }
 
 /**

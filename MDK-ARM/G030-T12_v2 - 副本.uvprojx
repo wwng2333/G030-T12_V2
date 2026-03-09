@@ -825,6 +825,11 @@
               <FileType>1</FileType>
               <FilePath>..\Core\Src\HAL\timer_hal.c</FilePath>
             </File>
+            <File>
+              <FileName>lm75_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\HAL\lm75_hal.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
